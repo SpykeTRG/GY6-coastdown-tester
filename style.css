@@ -6,8 +6,9 @@
     --accent-glow: rgba(139, 92, 246, 0.2);
     --green: #10b981;
     --red: #ef4444;
+    --orange: #f97316; /* Новый яркий оранжевый цвет */
     --text: #f4f4f5;
-    --text-dim: #52525b;
+    --text-dim: #71717a;
     --grid-line: rgba(39, 39, 42, 0.6);
 }
 
@@ -190,15 +191,6 @@ td {
     line-height: 1.4; 
     border-left: 3px solid var(--accent); 
     padding-left: 10px; 
-}
-
-/* Стилизация неактивного состояния кнопок на iOS */
-.btn:disabled {
-    opacity: 0.4;
-    background: #141419;
-    color: var(--text-dim);
-    border-color: var(--border);
-    cursor: not-allowed;
 }
 
 @keyframes pulse {
