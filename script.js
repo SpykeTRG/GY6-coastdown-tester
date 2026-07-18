@@ -174,8 +174,8 @@ function drawOscilloscope() {
     let maxScaleY = Math.ceil(maxInHistory / 2) * 2; if (maxScaleY < 4) maxScaleY = 4; 
     oscCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)'; oscCtx.lineWidth = 0.5; oscCtx.fillStyle = '#ffffff'; oscCtx.font = '10px tabular-nums'; oscCtx.textAlign = 'right';
     for (let i = 0; i <= 4; i++) {
-        let y = graphH + 10 - (graphH * (i / 4));
-        oscCtx.beginPath(); oscCtx.moveTo(paddingLeft, y); oscCtx.lineTo(w - 10, y); oscCtx.stroke(); oscCtx.fillText(((maxScaleY / 4) * i).toFixed(1) + 'g', paddingLeft - 8, y + 3);
+        let gValue = (maxScaleY / 4) * i; let y = graphH + 10 - (graphH * (i / 4));
+        oscCtx.beginPath(); oscCtx.moveTo(paddingLeft, y); oscCtx.lineTo(w - 10, y); oscCtx.stroke(); oscCtx.fillText(gValue.toFixed(1) + 'g', paddingLeft - 8, y + 3);
     }
     oscCtx.textAlign = 'center';
     for (let i = 0; i < 5; i++) {
@@ -275,5 +275,39 @@ function analyzeAdvancedResults(automatedElapsed) {
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js').then(reg => console.log('PWA активен', reg)).catch(err => console.log('Ошибка PWA:', err));
+    });
+}
+const updateBtn = document.getElementById('updateBtn');
+if (updateBtn) {
+    updateBtn.addEventListener('click', () => {
+        updateBtn.classList.add('spin-animation');
+        diagLog.innerHTML = "<span style='color:var(--accent)'>⏳ Проверка обновлений на GitHub...</span>";
+        
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistration().then(registration => {
+                if (registration) {
+                    registration.update().then(() => {
+                        setTimeout(() => {
+                            updateBtn.classList.remove('spin-animation');
+                            diagLog.innerHTML = "<span style='color:var(--green)'>✓ Кэш синхронизирован. Если версия не изменилась, значит вы используете последний билд.</span>";
+                        }, 1000);
+                    });
+                } else {
+                    window.location.reload();
+                }
+            }).catch(err => {
+                window.location.reload();
+            });
+        } else {
+            window.location.reload();
+        }
+    });
+}
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        diagLog.innerHTML = "<span style='color:var(--green)'>🚀 Найдена новая версия! Перезапуск приложения...</span>";
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
     });
 }
