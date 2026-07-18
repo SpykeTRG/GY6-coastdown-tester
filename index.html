@@ -4,12 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>GY6 HIGH-PRECISION DIAGNOSTICS</title>
+    
+    <!-- Подключаем PWA Манифест -->
     <link rel="manifest" href="manifest.json">
+    
+    <!-- Специфические метатеги Apple iOS для скрытия интерфейса Safari -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="GY6 Telemetry">
+    
+    <!-- Встроенная адаптивная неоновая иконка в формате SVG (для экрана Домой на iPhone и вкладок) -->
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://w3.org' viewBox='0 0 512 512' width='512' height='512'><rect width='512' height='512' rx='110' fill='%23141419'/><circle cx='256' cy='256' r='160' fill='none' stroke='%23f97316' stroke-width='14' stroke-dasharray='30 15'/><circle cx='256' cy='256' r='100' fill='none' stroke='%238b5cf6' stroke-width='10'/><path d='M220 180 L310 256 L220 332 Z' fill='%2310b981'/><circle cx='256' cy='256' r='14' fill='%23ef4444'/></svg>">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://w3.org' viewBox='0 0 512 512'><rect width='512' height='512' rx='110' fill='%23141419'/><circle cx='256' cy='256' r='160' fill='none' stroke='%23f97316' stroke-width='14' stroke-dasharray='30 15'/><circle cx='256' cy='256' r='100' fill='none' stroke='%238b5cf6' stroke-width='10'/><path d='M220 180 L310 256 L220 332 Z' fill='%2310b981'/><circle cx='256' cy='256' r='14' fill='%23ef4444'/></svg>">
+    
+    <!-- Подключаем внешние стили -->
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -26,6 +34,7 @@
         </div>
 
         <div class="hud-grid">
+            <!-- Цифровой HUD -->
             <div class="panel">
                 <span class="label">Выбег колеса</span>
                 <span id="timerVal" class="num timer-color">0.0 <span class="unit">сек</span></span>
@@ -35,7 +44,7 @@
                 <span id="effVal" class="num eff-color">0 <span class="unit">%</span></span>
             </div>
 
-            <!-- График 1: Вибрация -->
+            <!-- ГРАФИК 1: Вибрация (Осциллограф) -->
             <div class="panel panel-full panel-heavy">
                 <span class="label">Осциллограф микро-ударов (Ускорение по оси Z)</span>
                 <div class="canvas-container osc-space">
@@ -43,15 +52,7 @@
                 </div>
             </div>
 
-            <!-- График 2: Круговой радар -->
-            <div class="panel panel-full panel-heavy">
-                <span class="label">Круговой радар дефектов зубьев и подшипников (360°)</span>
-                <div class="canvas-container radar-space">
-                    <canvas id="radarCanvas"></canvas>
-                </div>
-            </div>
-
-            <!-- НОВЫЙ График 3: Спектрограмма звука микрофона -->
+            <!-- ГРАФИК 2: Спектрограмма звука микрофона (Теперь под осциллографом) -->
             <div class="panel panel-full panel-heavy">
                 <span class="label">Спектрограмма шума подшипников (Частотный анализ)</span>
                 <div class="canvas-container audio-space">
@@ -59,6 +60,15 @@
                 </div>
             </div>
 
+            <!-- ГРАФИК 3: Круговой радар заклинивания (Смещен в самый низ графической зоны) -->
+            <div class="panel panel-full panel-heavy">
+                <span class="label">Круговой радар дефектов зубьев и подшипников (360°)</span>
+                <div class="canvas-container radar-space">
+                    <canvas id="radarCanvas"></canvas>
+                </div>
+            </div>
+
+            <!-- Таблица экстраполяции потерь -->
             <div class="panel panel-full">
                 <span class="label">Экстраполяция потерь против потенциала ДВС 157QMJ</span>
                 <div class="table-container">
@@ -115,6 +125,7 @@
                 </div>
             </div>
 
+            <!-- Диагностический вердикт ИИ -->
             <div class="panel panel-full">
                 <span class="label">Диагностический вердикт ИИ</span>
                 <div id="diagLog" class="diagnostics-log">Ожидание старта... Проводите тест со снятым ремнем вариатора.</div>
@@ -122,6 +133,7 @@
         </div>
     </div>
 
+    <!-- Подключаем внешнюю логику -->
     <script src="script.js"></script>
 </body>
 </html>
