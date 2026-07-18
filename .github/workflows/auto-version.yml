@@ -1,32 +1,49 @@
-name: Auto Version SW Cache
+name: Secure PWA Deploy
 
 on:
   push:
     branches:
       - main
 
+# Разрешаем этому роботу официально публиковать сайт на GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
 jobs:
-  build-and-deploy:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps: deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Inject Dynamic Version into SW and HTML
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Inject Dynamic Version to Cache and HTML
         run: |
+          # Используем уникальный номер прохода GitHub Actions
           BUILD_NUM="${{ github.run_number }}"
           
-          # Жестко прописываем новый номер билда в Service Worker и разметку
+          # Заменяем текстовые маркеры на реальное число прямо в памяти сервера перед сборкой
           sed -i "s/BUILD_VERSION/$BUILD_NUM/g" sw.js
           sed -i "s/BUILD_VERSION/$BUILD_NUM/g" index.html
           
-          echo "Сгенерирована сборка под номером: $BUILD_NUM"
+          echo "Сборка запущена под уникальным номером: $BUILD_NUM"
 
-      - name: Commit and Push Updated Files
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@://github.com"
-          
-          git add sw.js index.html
-          git commit -m "chore: auto-update build version to #$GITHUB_RUN_NUMBER [skip ci]" || echo "No changes to commit"
-          git push
+      - name: Upload Static Web Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
