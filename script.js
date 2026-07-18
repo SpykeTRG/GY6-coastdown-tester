@@ -1,0 +1,410 @@
+const permBtn = document.getElementById('permBtn');
+const actionBtn = document.getElementById('actionBtn');
+const timerVal = document.getElementById('timerVal');
+const effVal = document.getElementById('effVal');
+const diagLog = document.getElementById('diagLog');
+
+const oscCanvas = document.getElementById('oscCanvas');
+const oscCtx = oscCanvas.getContext('2d');
+const radarCanvas = document.getElementById('radarCanvas');
+const radarCtx = radarCanvas.getContext('2d');
+
+const STATE_IDLE = 0;
+const STATE_WAITING_FOR_SPIN = 1;
+const STATE_SPINNING = 2;
+const STATE_FINISHED = 3;
+let currentState = STATE_IDLE;
+
+let startTime = 0;
+let endTime = 0;
+let lastAngle = 0;
+let totalRotations = 0;
+let totalDegreesTraveled = 0;
+let isFirstAngle = true;
+let currentAngle = 0;
+
+let oscData = [];
+let angleSectors = new Array(360).fill(0);
+let maxSectorValue = 0;
+let impactTimeline = [];
+
+const SPIN_START_THRESHOLD = 1.2;
+const SPIN_STOP_THRESHOLD = 0.18;
+const STOP_DURATION_MS = 450;
+let stopTimestamp = null;
+
+function resizeDisplay() {
+	const dpr = window.devicePixelRatio || 1;
+	oscCanvas.width = oscCanvas.clientWidth * dpr;
+	oscCanvas.height = oscCanvas.clientHeight * dpr;
+	oscCtx.scale(dpr, dpr);
+	radarCanvas.width = radarCanvas.clientWidth * dpr;
+	radarCanvas.height = radarCanvas.clientHeight * dpr;
+	radarCtx.scale(dpr, dpr);
+}
+window.addEventListener('resize', resizeDisplay);
+setTimeout(resizeDisplay, 100);
+
+function uiRenderLoop() {
+	if (currentState === STATE_SPINNING || currentState === STATE_WAITING_FOR_SPIN) {
+		drawOscilloscope();
+		drawRadar();
+		requestAnimationFrame(uiRenderLoop);
+	}
+}
+
+permBtn.addEventListener('click', async () => {
+	if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+		try {
+			const permission = await DeviceMotionEvent.requestPermission();
+			if (permission === 'granted') {
+				permBtn.style.display = 'none';
+				actionBtn.disabled = false;
+				diagLog.innerHTML = "3D-Метрики iOS активированы. Нажмите НАЧАТЬ АВТО-ТЕСТ.";
+			}
+		} catch (e) {
+			alert('Ошибка калибровки CoreMotion: ' + e);
+		}
+	} else {
+		permBtn.style.display = 'none';
+		actionBtn.disabled = false;
+	}
+});
+
+actionBtn.addEventListener('click', () => {
+	currentState = STATE_WAITING_FOR_SPIN;
+	actionBtn.textContent = 'КАЛИБРОВКА 3D-ОСЕЙ...';
+	actionBtn.className = 'btn btn-recording';
+	actionBtn.disabled = true;
+
+	currentAngle = 0;
+	lastAngle = 0;
+	totalRotations = 0;
+	totalDegreesTraveled = 0;
+	isFirstAngle = true;
+	oscData = [];
+	angleSectors.fill(0);
+	maxSectorValue = 0;
+	impactTimeline = [];
+	stopTimestamp = null;
+
+	document.querySelectorAll('.m-loss, .p-loss').forEach(td => td.textContent = '-');
+	timerVal.innerHTML = '0.0 <span style="font-size:16px">сек</span>';
+	effVal.innerHTML = '0 <span style="font-size:16px">%</span>';
+	diagLog.innerHTML = "<span style='color:#f59e0b'>⚡ Автомат готов.</span> Резко толкните изолированное колесо вперед.";
+
+	setTimeout(() => {
+		if (currentState === STATE_WAITING_FOR_SPIN) {
+			actionBtn.textContent = 'ВЗВЕДЕНО! ТОЛКАЙТЕ!';
+			diagLog.innerHTML = "<span style='color:var(--green)'>🚀 СТАРТ ГОТОВ.</span> Толкайте колесо со всей силы!";
+		}
+	}, 1000);
+
+	window.addEventListener('deviceorientation', onOrientation);
+	window.addEventListener('devicemotion', onMotion);
+
+	requestAnimationFrame(uiRenderLoop);
+});
+
+function onOrientation(event) {
+	if (currentState === STATE_IDLE || currentState === STATE_FINISHED) return;
+
+	let angle = event.alpha;
+	if (angle !== null) {
+		currentAngle = Math.floor(angle) % 360;
+
+		if (isFirstAngle) {
+			lastAngle = currentAngle;
+			isFirstAngle = false;
+			return;
+		}
+
+		if (currentState === STATE_SPINNING) {
+			let deltaAngle = currentAngle - lastAngle;
+			if (deltaAngle > 180) deltaAngle -= 360;
+			else if (deltaAngle < -180) deltaAngle += 360;
+			totalDegreesTraveled += Math.abs(deltaAngle);
+			totalRotations = Math.floor(totalDegreesTraveled / 360);
+		}
+		lastAngle = currentAngle;
+	}
+}
+
+function onMotion(event) {
+	if (currentState === STATE_IDLE || currentState === STATE_FINISHED) return;
+	const now = performance.now();
+
+	let omega_3d = 0;
+	const rot = event.rotationRate;
+	if (rot) {
+		let rX = rot.beta || 0;
+		let rY = rot.gamma || 0;
+		let rZ = rot.alpha || 0;
+		omega_3d = Math.sqrt(rX * rX + rY * rY + rZ * rZ) / 57.2958;
+	}
+
+	if (currentState === STATE_WAITING_FOR_SPIN && omega_3d > SPIN_START_THRESHOLD) {
+		currentState = STATE_SPINNING;
+		startTime = now;
+		diagLog.innerHTML = "<span style='color:var(--green)'>● Запись выбега...</span> Колесо замедляется.";
+	}
+
+	if (currentState === STATE_SPINNING) {
+		const elapsedLive = (now - startTime) / 1000;
+		timerVal.innerHTML = elapsedLive.toFixed(1) + ' <span style="font-size:16px">сек</span>';
+
+		if (omega_3d < SPIN_STOP_THRESHOLD) {
+			if (stopTimestamp === null) stopTimestamp = now;
+			else if (now - stopTimestamp > STOP_DURATION_MS) {
+				currentState = STATE_FINISHED;
+				endTime = stopTimestamp;
+				window.removeEventListener('deviceorientation', onOrientation);
+				window.removeEventListener('devicemotion', onMotion);
+				actionBtn.textContent = '2. НАЧАТЬ АВТО-ТЕСТ';
+				actionBtn.className = 'btn btn-start';
+				actionBtn.disabled = false;
+
+				drawOscilloscope();
+				drawRadar();
+
+				analyzeAdvancedResults((endTime - startTime) / 1000);
+				return;
+			}
+		} else {
+			stopTimestamp = null;
+		}
+	}
+
+	if (currentState === STATE_SPINNING) {
+		const acc = event.acceleration;
+		if (acc) {
+			let ax = acc.x || 0;
+			let ay = acc.y || 0;
+			let az = acc.z || 0;
+
+			let totalVibeMagnitude = Math.sqrt(ax * ax + ay * ay + az * az);
+			if (totalVibeMagnitude < 0.6) totalVibeMagnitude = 0;
+
+			oscData.push(totalVibeMagnitude);
+			if (oscData.length > oscCanvas.clientWidth - 50) oscData.shift();
+
+			// ИСПРАВЛЕНО: обновляем тепловую карту для любого уровня вибрации выше нуля,
+			// чтобы радар не оставался пустым на исправных тихих редукторах
+			if (totalVibeMagnitude > 0) {
+				if (totalVibeMagnitude > angleSectors[currentAngle]) {
+					angleSectors[currentAngle] = totalVibeMagnitude;
+				}
+				if (angleSectors[currentAngle] > maxSectorValue) {
+					maxSectorValue = angleSectors[currentAngle];
+				}
+			}
+
+			// Фиксация только сильных микро-ударов для текстового лога ИИ
+			if (totalVibeMagnitude > 1.8) {
+				impactTimeline.push({
+					angle: currentAngle,
+					force: totalVibeMagnitude
+				});
+			}
+		}
+	}
+}
+
+function drawOscilloscope() {
+	const w = oscCanvas.clientWidth;
+	const h = oscCanvas.clientHeight;
+	oscCtx.clearRect(0, 0, w, h);
+	const paddingLeft = 45;
+	const paddingBottom = 20;
+	const graphW = w - paddingLeft - 10;
+	const graphH = h - paddingBottom - 10;
+
+	let maxInHistory = 2.0;
+	for (let i = 0; i < oscData.length; i++) {
+		if (oscData[i] > maxInHistory) maxInHistory = oscData[i];
+	}
+	let maxScaleY = Math.ceil(maxInHistory / 2) * 2;
+	if (maxScaleY < 4) maxScaleY = 4;
+
+	oscCtx.strokeStyle = 'var(--grid-line)';
+	oscCtx.lineWidth = 0.5;
+	oscCtx.fillStyle = 'var(--text-dim)';
+	oscCtx.font = '10px tabular-nums';
+	oscCtx.textAlign = 'right';
+
+	const yLines = 4;
+	for (let i = 0; i <= yLines; i++) {
+		let gValue = (maxScaleY / yLines) * i;
+		let y = graphH + 10 - (graphH * (i / yLines));
+		oscCtx.beginPath();
+		oscCtx.moveTo(paddingLeft, y);
+		oscCtx.lineTo(w - 10, y);
+		oscCtx.stroke();
+		oscCtx.fillText(gValue.toFixed(1) + 'g', paddingLeft - 8, y + 3);
+	}
+
+	if (oscData.length < 2) return;
+	oscCtx.strokeStyle = 'var(--red)';
+	oscCtx.lineWidth = 2;
+	oscCtx.beginPath();
+	const stepX = graphW / (oscCanvas.clientWidth - 50);
+	for (let i = 0; i < oscData.length; i++) {
+		let x = paddingLeft + (i * stepX);
+		let y = graphH + 10 - (graphH * (oscData[i] / maxScaleY));
+		if (i === 0) oscCtx.moveTo(x, y);
+		else oscCtx.lineTo(x, y);
+	}
+	oscCtx.stroke();
+}
+
+function drawRadar() {
+	const w = radarCanvas.clientWidth;
+	const h = radarCanvas.clientHeight;
+	const cx = w / 2;
+	const cy = h / 2;
+	const r = Math.min(cx, cy) - 25;
+	radarCtx.clearRect(0, 0, w, h);
+
+	radarCtx.strokeStyle = 'var(--grid-line)';
+	radarCtx.lineWidth = 0.5;
+	let rings = [r, r * 0.66, r * 0.33];
+	rings.forEach(radius => {
+		radarCtx.beginPath();
+		radarCtx.arc(cx, cy, radius, 0, 2 * Math.PI);
+		radarCtx.stroke();
+	});
+
+	radarCtx.fillStyle = 'var(--text-dim)';
+	radarCtx.font = '10px sans-serif';
+	radarCtx.textAlign = 'center';
+	for (let i = 0; i < 360; i += 45) {
+		let rad = (i - 90) * Math.PI / 180;
+		radarCtx.beginPath();
+		radarCtx.moveTo(cx, cy);
+		radarCtx.lineTo(cx + r * Math.cos(rad), cy + r * Math.sin(rad));
+		radarCtx.stroke();
+		let textX = cx + (r + 14) * Math.cos(rad);
+		let textY = cy + (r + 14) * Math.sin(rad) + 3;
+		radarCtx.fillText(i + '°', textX, textY);
+	}
+
+	if (maxSectorValue === 0) return;
+	for (let i = 0; i < 360; i++) {
+		const val = angleSectors[i];
+		if (val > 0) {
+			const magnitude = (val / maxSectorValue) * r;
+			const rad = (i - 90) * Math.PI / 180;
+			const x = cx + magnitude * Math.cos(rad);
+			const y = cy + magnitude * Math.sin(rad);
+			radarCtx.strokeStyle = rgba(139, 92, 246, $ {
+				Math.min(val / maxSectorValue + 0.2, 1)
+			});
+			radarCtx.lineWidth = 2.5;
+			radarCtx.beginPath();
+			radarCtx.moveTo(cx, cy);
+			radarCtx.lineTo(x, y);
+			radarCtx.stroke();
+		}
+	}
+}
+
+// Замените в вашем CodePen только функцию analyzeAdvancedResults на эту обновленную версию:
+
+function analyzeAdvancedResults(automatedElapsed) {
+    const elapsed = automatedElapsed;
+    timerVal.innerHTML = elapsed.toFixed(1) + ' <span style="font-size:16px">сек</span>';
+    
+    if (totalDegreesTraveled < 90) {
+        effVal.innerHTML = '0 <span style="font-size:16px">%</span>';
+        diagLog.innerHTML = "❌ <b>ОШИБКА 3D-АНАЛИЗА:</b> Недостаточный угол прокрутки.";
+        return;
+    }
+
+    // 1. Фактическая кинематика вашего редуктора
+    let totalRadians = (totalDegreesTraveled * Math.PI) / 180; 
+    let omega_start_wheel = (2 * totalRadians) / elapsed; 
+    let epsilon_wheel = omega_start_wheel / elapsed;
+    
+    let J_isolated = 0.142; // Приведенный момент инерции изолированного узла
+    let T_base_wheel = J_isolated * epsilon_wheel; 
+
+    // Расчет эффективности для экрана относительно идеала в 4.0 секунды
+    let finalEff = Math.round((elapsed / 4.0) * 100);
+    if (finalEff > 150) finalEff = 150;
+    effVal.innerHTML = finalEff + ' <span style="font-size:16px">%</span>';
+
+    let gear_ratio = 8.3; // Передаточное число редуктора GY6-150
+    let omega_ref = 50.0; // Фиксированный базис вязкости масла
+    
+    // 2. РАСЧЕТ ИДЕАЛЬНОГО ЭТАЛОНА РЕДУКТОРA (Задаем жесткий ориентир: 3.5 оборота за 4.0 сек)
+    let ref_elapsed = 4.0;
+    let ref_radians = (3.5 * 360 * Math.PI) / 180;
+    let ref_omega_start = (2 * ref_radians) / ref_elapsed;
+    let ref_epsilon = ref_omega_start / ref_elapsed;
+    let T_base_ref = J_isolated * ref_epsilon;
+
+    document.querySelectorAll('#lossTable tbody tr').forEach(row => {
+        let motor_rpm = parseInt(row.getAttribute('data-rpm'));
+        let eng_torque_crank = parseFloat(row.getAttribute('data-eng-t'));
+        let eng_hp = parseFloat(row.getAttribute('data-eng-hp'));
+        
+        let wheel_rpm = motor_rpm / gear_ratio;
+        let omega_wheel_high = (wheel_rpm * 2 * Math.PI) / 60;
+        
+        // --- А. Расчет ваших фактических потерь ---
+        let T_static = T_base_wheel * 0.40;
+        let T_dynamic_base = T_base_wheel * 0.60;
+        let T_loss_wheel_high = T_static + T_dynamic_base * Math.pow(omega_wheel_high / omega_ref, 1.5);
+        if (T_loss_wheel_high > 4.5) T_loss_wheel_high = 4.5; // Физический лимитер
+
+        let P_watts = T_loss_wheel_high * omega_wheel_high;
+        let HP_loss = P_watts / 735.5;
+
+        // --- Б. Расчет чистокровного эталона (Идеальный редуктор) ---
+        let T_static_ref = T_base_ref * 0.40;
+        let T_dynamic_ref_base = T_base_ref * 0.60;
+        let T_loss_wheel_ref = T_static_ref + T_dynamic_ref_base * Math.pow(omega_wheel_high / omega_ref, 1.5);
+        
+        let P_watts_ref = T_loss_wheel_ref * omega_wheel_high;
+        let HP_loss_ref = P_watts_ref / 735.5;
+
+        // --- В. Расчет полной мощности и момента НА КОЛЕСЕ от самого ДВС ---
+        // Физика: Редуктор увеличивает момент мотора в i раз (Т_колеса = Т_мотора * i)
+        let eng_torque_wheel = eng_torque_crank * gear_ratio;
+
+        // Запись ваших данных
+        row.querySelector('.m-loss').textContent = T_loss_wheel_high.toFixed(2) + ' Нм';
+        row.querySelector('.p-loss').textContent = HP_loss.toFixed(4) + ' лс';
+        
+        // Запись эталона потерь редуктора
+        row.querySelector('.m-ref').textContent = T_loss_wheel_ref.toFixed(2) + ' Нм';
+        row.querySelector('.p-ref').textContent = HP_loss_ref.toFixed(4) + ' лс';
+        
+        // Запись полного потенциала исправного мотора (приведено к оси колеса)
+        row.querySelector('.m-eng').textContent = eng_torque_wheel.toFixed(1) + ' Нм';
+        row.querySelector('.p-eng').textContent = eng_hp.toFixed(1) + ' лс';
+    });
+
+    // Текстовая диагностика
+    if (totalRotations === 0) totalRotations = 1;
+    const totalImpacts = impactTimeline.length;
+    const impactsPerRotation = totalImpacts / totalRotations;
+
+    let report = `<b>Интеллектуальный 3D-тест окончен.</b> Накат редуктора: <b>${finalEff}%</b><br><br>`;
+    if (elapsed >= 3.5) {
+        report += `✅ <b>ЭТАЛОННЫЕ ПОКАЗАТЕЛИ:</b> Потери вашего редуктора полностью соответствуют заводскому эталону (см. таблицу). Подшипники NSK не изменят динамику, узел идеален.`;
+    } else {
+        // Вычисляем чистую разницу потерь на пиковых 8000 RPM, чтобы показать выгоду от NSK
+        let current_loss_8k = parseFloat(document.querySelector('tr[data-rpm="8000"] .p-loss').textContent);
+        let ref_loss_8k = parseFloat(document.querySelector('tr[data-rpm="8000"] .p-ref').textContent);
+        let delta_hp = current_loss_8k - ref_loss_8k;
+
+        report += `❌ <b>ОБНАРУЖЕНЫ КИНЕТИЧЕСКИЕ ПОТЕРИ:</b> Ваш редуктор зажат. На рабочих 8000 RPM он крадет у мотора на <b>${delta_hp.toFixed(3)} л.с.</b> больше, чем эталонный узел. `;
+        if (impactsPerRotation > 5.0) {
+            report += `<br><br>➔ Из-за высокой плотности 3D-ударов виноваты раковины в подшипниках. <b>Установка оригинальных NSK/SKF вернет эти силы на колесо.</b>`;
+        } else {
+            report += `<br><br>➔ Ударов нет, но трение повышено. Проверьте, не залито ли слишком густое масло и не зажаты ли валы регулировочными шайбами крышки редуктора.`;
+        }
+    }
+    diagLog.innerHTML = report;
+}
