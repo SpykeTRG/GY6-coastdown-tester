@@ -1,0 +1,19 @@
+{
+  "nav_type": "none",
+  "name": "GY6 Telemetry",
+  "short_name": "GY6-Test",
+  "description": "3D Диагностика редуктора 157QMJ",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#141419",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://flaticon.com",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
