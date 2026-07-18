@@ -272,6 +272,13 @@ function analyzeAdvancedResults(automatedElapsed) {
     }
     diagLog.innerHTML = report;
 }
+// Умный сброс кэша стилей прямо на лету при инициализации PWA
+window.addEventListener('DOMContentLoaded', () => {
+    const stylesheet = document.getElementById('mainStylesheet');
+    if (stylesheet) {
+        stylesheet.href = 'style.css?update=' + new Date().getTime();
+    }
+});
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js').then(reg => console.log('PWA активен', reg)).catch(err => console.log('Ошибка PWA:', err));
