@@ -4,13 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>GY6 HIGH-PRECISION DIAGNOSTICS</title>
+    
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="GY6 Telemetry">
+    
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://w3.org' viewBox='0 0 512 512' width='512' height='512'><rect width='512' height='512' rx='110' fill='%23141419'/><circle cx='256' cy='256' r='160' fill='none' stroke='%23f97316' stroke-width='14' stroke-dasharray='30 15'/><circle cx='256' cy='256' r='100' fill='none' stroke='%238b5cf6' stroke-width='10'/><path d='M220 180 L310 256 L220 332 Z' fill='%2310b981'/><circle cx='256' cy='256' r='14' fill='%23ef4444'/></svg>">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://w3.org' viewBox='0 0 512 512'><rect width='512' height='512' rx='110' fill='%23141419'/><circle cx='256' cy='256' r='160' fill='none' stroke='%23f97316' stroke-width='14' stroke-dasharray='30 15'/><circle cx='256' cy='256' r='100' fill='none' stroke='%238b5cf6' stroke-width='10'/><path d='M220 180 L310 256 L220 332 Z' fill='%2310b981'/><circle cx='256' cy='256' r='14' fill='%23ef4444'/></svg>">
-    <link rel="stylesheet" href="style-7.css">
+    
+    <!-- Жесткое стандартное имя файла со специальным ID -->
+    <link rel="stylesheet" href="style.css" id="mainStylesheet">
 </head>
 <body>
 
@@ -18,7 +22,10 @@
         <header>
             <div class="header-main">
                 <h1>GY6 HIGH-PRECISION DIAGNOSTICS</h1>
-                <span id="appVersion" class="version-badge">Build: 6</span>
+                <div class="version-controls">
+                    <span id="appVersion" class="version-badge">Build: BUILD_VERSION</span>
+                    <button id="updateBtn" class="update-icon-btn">↻</button>
+                </div>
             </div>
             <div class="subtitle">Анализ изолированного редуктора 157QMJ на iPhone 12</div>
         </header>
