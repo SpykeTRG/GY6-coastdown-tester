@@ -135,218 +135,126 @@ function onOrientation(event) {
 }
 
 function onMotion(event) {
-	if (currentState === STATE_IDLE || currentState === STATE_FINISHED) return;
-	const now = performance.now();
-	let omega_3d = 0;
-	const rot = event.rotationRate;
-	if (rot) {
-		let rX = rot.beta || 0;
-		let rY = rot.gamma || 0;
-		let rZ = rot.alpha || 0;
-		omega_3d = Math.sqrt(rX * rX + rY * rY + rZ * rZ) / 57.2958;
-	}
-	if (currentState === STATE_WAITING_FOR_SPIN && omega_3d > SPIN_START_THRESHOLD) {
-		currentState = STATE_SPINNING;
-		startTime = now;
-		diagLog.innerHTML = "<span style='color:var(--green)'>● Запись выбега...</span> Колесо замедляется.";
-	}
-	if (currentState === STATE_SPINNING) {
-		const elapsedLive = (now - startTime) / 1000;
-		timerVal.innerHTML = elapsedLive.toFixed(1) + ' <span class="unit">сек</span>';
-		if (omega_3d < SPIN_STOP_THRESHOLD) {
-			if (stopTimestamp === null) stopTimestamp = now;
-			else if (now - stopTimestamp > STOP_DURATION_MS) {
-				currentState = STATE_FINISHED;
-				endTime = stopTimestamp;
-				window.removeEventListener('deviceorientation', onOrientation);
-				window.removeEventListener('devicemotion', onMotion);
-				actionBtn.textContent = '2. НАЧАТЬ АВТО-ТЕСТ';
-				actionBtn.className = 'btn btn-start';
-				actionBtn.disabled = false;
-				drawOscilloscope();
-				drawRadar();
-				analyzeAdvancedResults((endTime - startTime) / 1000);
-				return;
-			}
-		} else {
-			stopTimestamp = null;
-		}
-	}
-	if (currentState === STATE_SPINNING) {
-		const acc = event.acceleration;
-		if (acc) {
-			let ax = acc.x || 0;
-			let ay = acc.y || 0;
-			let az = acc.z || 0;
-			let totalVibeMagnitude = Math.sqrt(ax * ax + ay * ay + az * az);
-			if (totalVibeMagnitude < 0.6) totalVibeMagnitude = 0;
-			oscData.push(totalVibeMagnitude);
-			if (oscData.length > oscCanvas.clientWidth - 50) oscData.shift();
-			if (totalVibeMagnitude > 0) {
-				if (totalVibeMagnitude > angleSectors[currentAngle]) angleSectors[currentAngle] = totalVibeMagnitude;
-				if (angleSectors[currentAngle] > maxSectorValue) maxSectorValue = angleSectors[currentAngle];
-			}
-			if (totalVibeMagnitude > 1.8) impactTimeline.push({
-				angle: currentAngle,
-				force: totalVibeMagnitude
-			});
-		}
-	}
+    if (currentState === STATE_IDLE || currentState === STATE_FINISHED) return;
+    const now = performance.now();
+    let omega_3d = 0;
+    const rot = event.rotationRate;
+    if (rot) {
+        let rX = rot.beta || 0; let rY = rot.gamma || 0; let rZ = rot.alpha || 0;
+        omega_3d = Math.sqrt(rX*rX + rY*rY + rZ*rZ) / 57.2958; 
+    }
+    if (currentState === STATE_WAITING_FOR_SPIN && omega_3d > SPIN_START_THRESHOLD) {
+        currentState = STATE_SPINNING; startTime = now;
+        diagLog.innerHTML = "<span style='color:var(--green)'>● Запись выбега...</span> Колесо замедляется.";
+    }
+    if (currentState === STATE_SPINNING) {
+        const elapsedLive = (now - startTime) / 1000;
+        timerVal.innerHTML = elapsedLive.toFixed(1) + ' <span class="unit">сек</span>';
+        if (omega_3d < SPIN_STOP_THRESHOLD) {
+            if (stopTimestamp === null) stopTimestamp = now; 
+            else if (now - stopTimestamp > STOP_DURATION_MS) {
+                currentState = STATE_FINISHED; endTime = stopTimestamp;
+                window.removeEventListener('deviceorientation', onOrientation); window.removeEventListener('devicemotion', onMotion);
+                actionBtn.textContent = '2. НАЧАТЬ АВТО-ТЕСТ'; actionBtn.className = 'btn btn-start'; actionBtn.disabled = false;
+                drawOscilloscope(); drawRadar(); analyzeAdvancedResults((endTime - startTime) / 1000); return;
+            }
+        } else { stopTimestamp = null; }
+    }
+    if (currentState === STATE_SPINNING) {
+        const acc = event.acceleration;
+        if (acc) {
+            let ax = acc.x || 0; let ay = acc.y || 0; let az = acc.z || 0;
+            let totalVibeMagnitude = Math.sqrt(ax*ax + ay*ay + az*az);
+            if (totalVibeMagnitude < 0.6) totalVibeMagnitude = 0;
+            oscData.push(totalVibeMagnitude);
+            if (oscData.length > oscCanvas.clientWidth - 50) oscData.shift();
+            if (totalVibeMagnitude > 0) {
+                if (totalVibeMagnitude > angleSectors[currentAngle]) angleSectors[currentAngle] = totalVibeMagnitude;
+                if (angleSectors[currentAngle] > maxSectorValue) maxSectorValue = angleSectors[currentAngle];
+            }
+            if (totalVibeMagnitude > 1.8) impactTimeline.push({ angle: currentAngle, force: totalVibeMagnitude });
+        }
+    }
 }
-
 function drawOscilloscope() {
-	const w = oscCanvas.clientWidth;
-	const h = oscCanvas.clientHeight;
-	oscCtx.clearRect(0, 0, w, h);
-	const paddingLeft = 45;
-	const paddingBottom = 20;
-	const graphW = w - paddingLeft - 10;
-	const graphH = h - paddingBottom - 10;
-	let maxInHistory = 2.0;
-	for (let i = 0; i < oscData.length; i++) {
-		if (oscData[i] > maxInHistory) maxInHistory = oscData[i];
-	}
-	let maxScaleY = Math.ceil(maxInHistory / 2) * 2;
-	if (maxScaleY < 4) maxScaleY = 4;
-	oscCtx.strokeStyle = 'var(--grid-line)';
-	oscCtx.lineWidth = 0.5;
-	oscCtx.fillStyle = 'var(--text-dim)';
-	oscCtx.font = '10px tabular-nums';
-	oscCtx.textAlign = 'right';
-	const yLines = 4;
-	for (let i = 0; i <= yLines; i++) {
-		let gValue = (maxScaleY / yLines) * i;
-		let y = graphH + 10 - (graphH * (i / yLines));
-		oscCtx.beginPath();
-		oscCtx.moveTo(paddingLeft, y);
-		oscCtx.lineTo(w - 10, y);
-		oscCtx.stroke();
-		oscCtx.fillText(gValue.toFixed(1) + 'g', paddingLeft - 8, y + 3);
-	}
-	const xLines = 5;
-	oscCtx.textAlign = 'center';
-	for (let i = 0; i < xLines; i++) {
-		let ratio = i / (xLines - 1);
-		let x = paddingLeft + (graphW * ratio);
-		oscCtx.beginPath();
-		oscCtx.moveTo(x, 10);
-		oscCtx.lineTo(x, graphH + 10);
-		oscCtx.stroke();
-		oscCtx.fillText(Math.round(ratio * 100) + '%', x, h - 5);
-	}
-	if (oscData.length < 2) return;
-	oscCtx.strokeStyle = 'var(--orange)';
-	oscCtx.lineWidth = 2.5;
-	oscCtx.beginPath();
-	const stepX = graphW / (oscCanvas.clientWidth - 50);
-	for (let i = 0; i < oscData.length; i++) {
-		let x = paddingLeft + (i * stepX);
-		let y = graphH + 10 - (graphH * (oscData[i] / maxScaleY));
-		if (i === 0) oscCtx.moveTo(x, y);
-		else oscCtx.lineTo(x, y);
-	}
-	oscCtx.stroke();
+    const w = oscCanvas.clientWidth; const h = oscCanvas.clientHeight; oscCtx.clearRect(0, 0, w, h);
+    const paddingLeft = 45; const paddingBottom = 20; const graphW = w - paddingLeft - 10; const graphH = h - paddingBottom - 10;
+    let maxInHistory = 2.0; for(let i=0; i<oscData.length; i++) { if(oscData[i] > maxInHistory) maxInHistory = oscData[i]; }
+    let maxScaleY = Math.ceil(maxInHistory / 2) * 2; if (maxScaleY < 4) maxScaleY = 4; 
+    oscCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)'; oscCtx.lineWidth = 0.5; oscCtx.fillStyle = '#ffffff'; oscCtx.font = '10px tabular-nums'; oscCtx.textAlign = 'right';
+    const yLines = 4;
+    for (let i = 0; i <= yLines; i++) {
+        let gValue = (maxScaleY / yLines) * i; let y = graphH + 10 - (graphH * (i / yLines));
+        oscCtx.beginPath(); oscCtx.moveTo(paddingLeft, y); oscCtx.lineTo(w - 10, y); oscCtx.stroke(); oscCtx.fillText(gValue.toFixed(1) + 'g', paddingLeft - 8, y + 3);
+    }
+    const xLines = 5; oscCtx.textAlign = 'center';
+    for (let i = 0; i < xLines; i++) {
+        let ratio = i / (xLines - 1); let x = paddingLeft + (graphW * ratio);
+        oscCtx.beginPath(); oscCtx.moveTo(x, 10); oscCtx.lineTo(x, graphH + 10); oscCtx.stroke(); oscCtx.fillText(Math.round(ratio * 100) + '%', x, h - 5);
+    }
+    if (oscData.length < 2) return;
+    oscCtx.strokeStyle = '#f97316'; oscCtx.lineWidth = 2.5; oscCtx.beginPath();
+    const stepX = graphW / (oscCanvas.clientWidth - 50);
+    for (let i = 0; i < oscData.length; i++) {
+        let x = paddingLeft + (i * stepX); let y = graphH + 10 - (graphH * (oscData[i] / maxScaleY));
+        if (i === 0) oscCtx.moveTo(x, y); else oscCtx.lineTo(x, y);
+    }
+    oscCtx.stroke();
 }
-
 function drawRadar() {
-	const w = radarCanvas.clientWidth;
-	const h = radarCanvas.clientHeight;
-	const cx = w / 2;
-	const cy = h / 2;
-	const r = Math.min(cx, cy) - 25;
-	radarCtx.clearRect(0, 0, w, h);
-	radarCtx.strokeStyle = 'var(--grid-line)';
-	radarCtx.lineWidth = 0.5;
-	radarCtx.fillStyle = 'var(--text-dim)';
-	radarCtx.font = '9px sans-serif';
-	radarCtx.textAlign = 'left';
-	let rings = [r, r * 0.66, r * 0.33];
-	let ringLabels = ['Max EP', 'Mid', 'Low'];
-	rings.forEach((radius, idx) => {
-		radarCtx.beginPath();
-		radarCtx.arc(cx, cy, radius, 0, 2 * Math.PI);
-		radarCtx.stroke();
-		radarCtx.fillText(ringLabels[idx], cx + 5, cy - radius + 10);
-	});
-	radarCtx.textAlign = 'center';
-	for (let i = 0; i < 360; i += 45) {
-		let rad = (i - 90) * Math.PI / 180;
-		radarCtx.beginPath();
-		radarCtx.moveTo(cx, cy);
-		radarCtx.lineTo(cx + r * Math.cos(rad), cy + r * Math.sin(rad));
-		radarCtx.stroke();
-		radarCtx.fillText(i + '°', cx + (r + 14) * Math.cos(rad), cy + (r + 14) * Math.sin(rad) + 3);
-	}
-	if (maxSectorValue === 0) return;
-	for (let i = 0; i < 360; i++) {
-		const val = angleSectors[i];
-		if (val > 0) {
-			const magnitude = (val / maxSectorValue) * r;
-			const rad = (i - 90) * Math.PI / 180;
-			radarCtx.strokeStyle = `rgba(249, 115, 22, ${Math.min(val/maxSectorValue + 0.3, 1)})`;
-			radarCtx.lineWidth = 2.5;
-			radarCtx.beginPath();
-			radarCtx.moveTo(cx, cy);
-			radarCtx.lineTo(cx + magnitude * Math.cos(rad), cy + magnitude * Math.sin(rad));
-			radarCtx.stroke();
-		}
-	}
+    const w = radarCanvas.clientWidth; const h = radarCanvas.clientHeight; const cx = w / 2; const cy = h / 2; const r = Math.min(cx, cy) - 25; radarCtx.clearRect(0, 0, w, h);
+    radarCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)'; radarCtx.lineWidth = 0.5; radarCtx.fillStyle = '#ffffff'; radarCtx.font = '9px sans-serif'; radarCtx.textAlign = 'left';
+    let rings = [r, r * 0.66, r * 0.33]; let ringLabels = ['Max EP', 'Mid', 'Low'];
+    rings.forEach((radius, idx) => {
+        radarCtx.beginPath(); radarCtx.arc(cx, cy, radius, 0, 2 * Math.PI); radarCtx.stroke(); radarCtx.fillText(ringLabels[idx], cx + 5, cy - radius + 10);
+    });
+    radarCtx.textAlign = 'center';
+    for (let i = 0; i < 360; i += 45) {
+        let rad = (i - 90) * Math.PI / 180;
+        radarCtx.beginPath(); radarCtx.moveTo(cx, cy); radarCtx.lineTo(cx + r * Math.cos(rad), cy + r * Math.sin(rad)); radarCtx.stroke();
+        radarCtx.fillText(i + '°', cx + (r + 14) * Math.cos(rad), cy + (r + 14) * Math.sin(rad) + 3);
+    }
+    if (maxSectorValue === 0) return;
+    for (let i = 0; i < 360; i++) {
+        const val = angleSectors[i];
+        if (val > 0) {
+            const magnitude = (val / maxSectorValue) * r; const rad = (i - 90) * Math.PI / 180;
+            radarCtx.strokeStyle = `rgba(139, 92, 246, ${Math.min(val/maxSectorValue + 0.2, 1)})`; radarCtx.lineWidth = 2.5;
+            radarCtx.beginPath(); radarCtx.moveTo(cx, cy); radarCtx.lineTo(cx + magnitude * Math.cos(rad), cy + magnitude * Math.sin(rad)); radarCtx.stroke();
+        }
+    }
+}
+function analyzeAdvancedResults(automatedElapsed) {
+    const elapsed = automatedElapsed; timerVal.innerHTML = elapsed.toFixed(1) + ' <span class="unit">сек</span>';
+    if (totalDegreesTraveled < 90) { effVal.innerHTML = '0 <span class="unit">%</span>'; diagLog.innerHTML = "❌ <b>ОШИБКА 3D-АНАЛИЗА:</b> Недостаточный угол прокрутки."; return; }
+    let totalRadians = (totalDegreesTraveled * Math.PI) / 180; let omega_start_wheel = (2 * totalRadians) / elapsed; let epsilon_wheel = omega_start_wheel / elapsed;
+    let J_isolated = 0.142; let T_base_wheel = J_isolated * epsilon_wheel; 
+    let finalEff = Math.round((elapsed / 4.0) * 100); if (finalEff > 150) finalEff = 150; effVal.innerHTML = finalEff + ' <span class="unit">%</span>';
+    let gear_ratio = 8.3; let omega_ref = 50.0; let ref_elapsed = 4.0; let ref_radians = (3.5 * 360 * Math.PI) / 180; let ref_omega_start = (2 * ref_radians) / ref_elapsed; let ref_epsilon = ref_omega_start / ref_elapsed; let T_base_ref = J_isolated * ref_epsilon;
+    document.querySelectorAll('#lossTable tbody tr').forEach(row => {
+        let motor_rpm = parseInt(row.getAttribute('data-rpm')); let eng_torque_crank = parseFloat(row.getAttribute('data-eng-t')); let eng_hp = parseFloat(row.getAttribute('data-eng-hp'));
+        let wheel_rpm = motor_rpm / gear_ratio; let omega_wheel_high = (wheel_rpm * 2 * Math.PI) / 60;
+        let T_static = T_base_wheel * 0.40; let T_dynamic_base = T_base_wheel * 0.60; let T_loss_wheel_high = T_static + T_dynamic_base * Math.pow(omega_wheel_high / omega_ref, 1.5);
+        if (T_loss_wheel_high > 4.5) T_loss_wheel_high = 4.5;
+        let HP_loss = (T_loss_wheel_high * omega_wheel_high) / 735.5;
+        let T_loss_wheel_ref = (T_base_ref * 0.40) + (T_base_ref * 0.60) * Math.pow(omega_wheel_high / omega_ref, 1.5);
+        let HP_loss_ref = (T_loss_wheel_ref * omega_wheel_high) / 735.5;
+        row.querySelector('.m-loss').textContent = T_loss_wheel_high.toFixed(2) + ' Нм'; row.querySelector('.p-loss').textContent = HP_loss.toFixed(4) + ' лс';
+        row.querySelector('.m-ref').textContent = T_loss_wheel_ref.toFixed(2) + ' Нм'; row.querySelector('.p-ref').textContent = HP_loss_ref.toFixed(4) + ' лс';
+        row.querySelector('.m-eng').textContent = (eng_torque_crank * gear_ratio).toFixed(1) + ' Нм'; row.querySelector('.p-eng').textContent = eng_hp.toFixed(1) + ' лс';
+    });
+    if (totalRotations === 0) totalRotations = 1;
+    const impactsPerRotation = impactTimeline.length / totalRotations;
+    let report = `<b>Интеллектуальный 3D-тест окончен.</b> Накат редуктора: <b>${finalEff}%</b><br><br>`;
+    if (elapsed >= 3.5) {
+        report += `✅ <b>ЭТАЛОННЫЕ ПОКАЗАТЕЛИ:</b> Потери вашего редуктора полностью соответствуют заводскому эталону (см. таблицу). Подшипники NSK не изменят динамику, узел идеален.`;
+    } else {
+        let current_loss_8k = parseFloat(document.querySelector('tr[data-rpm="8000"] .p-loss').textContent);
+        let ref_loss_8k = parseFloat(document.querySelector('tr[data-rpm="8000"] .p-ref').textContent);
+        report += `❌ <b>ОБНАРУЖЕНЫ КИНЕТИЧЕСКИЕ ПОТЕРИ:</b> Ваш редуктор зажат. На рабочих 8000 RPM он крадет у мотора на <b> ${(current_loss_8k - ref_loss_8k).toFixed(3)} л.с.</b> больше, чем эталонный узел. `;
+        if (impactsPerRotation > 5.0) report += `<br><br>➔ Из-за высокой плотности 3D-ударов виноваты раковины в подшипниках. <b>Установка оригинальных NSK/SKF вернет эти силы на колесо.</b>`;
+        else report += `<br><br>➔ Ударов нет, но трение повышено. Проверьте, не залито ли слишком густое масло и не зажаты ли валы регулировочными шайбами крышки редуктора.`;
+    }
+    diagLog.innerHTML = report;
 }
 
-function analyzeAdvancedResults(automatedElapsed) {
-	const elapsed = automatedElapsed;
-	timerVal.innerHTML = elapsed.toFixed(1) + ' <span class="unit">сек</span>';
-	if (totalDegreesTraveled < 90) {
-		effVal.innerHTML = '0 <span class="unit">%</span>';
-		diagLog.innerHTML = "❌ <b>ОШИБКА 3D-АНАЛИЗА:</b> Недостаточный угол прокрутки.";
-		return;
-	}
-	let totalRadians = (totalDegreesTraveled * Math.PI) / 180;
-	let omega_start_wheel = (2 * totalRadians) / elapsed;
-	let epsilon_wheel = omega_start_wheel / elapsed;
-	let J_isolated = 0.142;
-	let T_base_wheel = J_isolated * epsilon_wheel;
-	let finalEff = Math.round((elapsed / 4.0) * 100);
-	if (finalEff > 150) finalEff = 150;
-	effVal.innerHTML = finalEff + ' <span class="unit">%</span>';
-	let gear_ratio = 8.3;
-	let omega_ref = 50.0;
-	let ref_elapsed = 4.0;
-	let ref_radians = (3.5 * 360 * Math.PI) / 180;
-	let ref_omega_start = (2 * ref_radians) / ref_elapsed;
-	let ref_epsilon = ref_omega_start / ref_elapsed;
-	let T_base_ref = J_isolated * ref_epsilon;
-	document.querySelectorAll('#lossTable tbody tr').forEach(row => {
-		let motor_rpm = parseInt(row.getAttribute('data-rpm'));
-		let eng_torque_crank = parseFloat(row.getAttribute('data-eng-t'));
-		let eng_hp = parseFloat(row.getAttribute('data-eng-hp'));
-		let wheel_rpm = motor_rpm / gear_ratio;
-		let omega_wheel_high = (wheel_rpm * 2 * Math.PI) / 60;
-		let T_static = T_base_wheel * 0.40;
-		let T_dynamic_base = T_base_wheel * 0.60;
-		let T_loss_wheel_high = T_static + T_dynamic_base * Math.pow(omega_wheel_high / omega_ref, 1.5);
-		if (T_loss_wheel_high > 4.5) T_loss_wheel_high = 4.5;
-		let HP_loss = (T_loss_wheel_high * omega_wheel_high) / 735.5;
-		let T_loss_wheel_ref = (T_base_ref * 0.40) + (T_base_ref * 0.60) * Math.pow(omega_wheel_high / omega_ref, 1.5);
-		let HP_loss_ref = (T_loss_wheel_ref * omega_wheel_high) / 735.5;
-		row.querySelector('.m-loss').textContent = T_loss_wheel_high.toFixed(2) + ' Нм';
-		row.querySelector('.p-loss').textContent = HP_loss.toFixed(4) + ' лс';
-		row.querySelector('.m-ref').textContent = T_loss_wheel_ref.toFixed(2) + ' Нм';
-		row.querySelector('.p-ref').textContent = HP_loss_ref.toFixed(4) + ' лс';
-		row.querySelector('.m-eng').textContent = (eng_torque_crank * gear_ratio).toFixed(1) + ' Нм';
-		row.querySelector('.p-eng').textContent = eng_hp.toFixed(1) + ' лс';
-	});
-	if (totalRotations === 0) totalRotations = 1;
-	const impactsPerRotation = impactTimeline.length / totalRotations;
-	let report = `<b>Интеллектуальный 3D-тест окончен.</b> Накат редуктора: <b>${finalEff}%</b><br><br>`;
-	if (elapsed >= 3.5) {
-		report += `✅ <b>ЭТАЛОННЫЕ ПОКАЗАТЕЛИ:</b> Потери вашего редуктора полностью соответствуют заводскому эталону (см. таблицу). Подшипники NSK не изменят динамику, узел идеален.`;
-	} else {
-		let current_loss_8k = parseFloat(document.querySelector('tr[data-rpm="8000"] .p-loss').textContent);
-		let ref_loss_8k = parseFloat(document.querySelector('tr[data-rpm="8000"] .p-ref').textContent);
-		report += `❌ <b>ОБНАРУЖЕНЫ КИНЕТИЧЕСКИЕ ПОТЕРИ:</b> Ваш редуктор зажат. На рабочих 8000 RPM он крадет у мотора на <b> ${(current_loss_8k - ref_loss_8k).toFixed(3)} л.с.</b> больше, чем эталонный узел. `;
-		if (impactsPerRotation > 5.0) report += `<br><br>➔ Из-за высокой плотности 3D-ударов виноваты раковины в подшипниках. <b>Установка оригинальных NSK/SKF вернет эти силы на колесо.</b>`;
-		else report += `<br><br>➔ Ударов нет, но трение повышено. Проверьте, не залито ли слишком густое масло и не зажаты ли валы регулировочными шайбами крышки редуктора.`;
-	}
-	diagLog.innerHTML = report;
-}
