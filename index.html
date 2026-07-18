@@ -1,0 +1,101 @@
+<header>
+    <h1>GY6 HIGH-PRECISION DIAGNOSTICS</h1>
+    <div class="subtitle">Анализ изолированного редуктора 157QMJ на iPhone 12</div>
+</header>
+
+<div class="btn-group">
+    <button id="permBtn" class="btn">1. АКТИВИРОВАТЬ ДАТЧИКИ IOS</button>
+    <button id="actionBtn" class="btn btn-start" disabled>2. НАЧАТЬ АВТО-ТЕСТ</button>
+</div>
+
+<div class="hud-grid">
+    <!-- Цифровой HUD -->
+    <div class="panel">
+        <span class="label">Выбег колеса</span>
+        <span id="timerVal" class="num" style="color:var(--accent)">0.0 <span style="font-size:16px">сек</span></span>
+    </div>
+    <div class="panel">
+        <span class="label">Накат (Эффективность)</span>
+        <span id="effVal" class="num" style="color:var(--green)">0 <span style="font-size:16px">%</span></span>
+    </div>
+
+    <!-- Осциллограф -->
+    <div class="panel panel-full panel-heavy">
+        <span class="label">Осциллограф микро-ударов (Ускорение по оси Z)</span>
+        <div class="canvas-container osc-space">
+            <canvas id="oscCanvas"></canvas>
+        </div>
+    </div>
+
+    <!-- Полярный радар -->
+    <div class="panel panel-full panel-heavy">
+        <span class="label">Круговой радар дефектов зубьев и подшипников (360°)</span>
+        <div class="canvas-container radar-space">
+            <canvas id="radarCanvas"></canvas>
+        </div>
+    </div>
+
+    <!-- РАСШИРЕННАЯ ТАБЛИЦА С ЭТАЛОНАМИ -->
+    <div class="panel panel-full">
+        <span class="label">Экстраполяция потерь против потенциала ДВС 157QMJ</span>
+        <div class="table-container">
+            <table id="lossTable">
+                <thead>
+                    <tr>
+                        <th rowspan="2" style="vertical-align: middle;">RPM</th>
+                        <th colspan="2" style="text-align: center; border-bottom: 1px solid var(--border);">Ваш редуктор</th>
+                        <th colspan="2" style="text-align: center; border-bottom: 1px solid var(--border); color: var(--green);">Эталон редуктора</th>
+                        <th colspan="2" style="text-align: center; border-bottom: 1px solid var(--border); color: #60a5fa;">Выход мотора 157QMJ</th>
+                    </tr>
+                    <tr>
+                        <th>Момент</th>
+                        <th>Мощность</th>
+                        <th style="color: rgba(16, 185, 129, 0.7);">Момент</th>
+                        <th style="color: rgba(16, 185, 129, 0.7);">Мощность</th>
+                        <th style="color: rgba(96, 165, 250, 0.7);">Момент</th>
+                        <th style="color: rgba(96, 165, 250, 0.7);">Мощность</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Паспортные данные ДВС зашиты в дата-атрибуты для JS (момент на коленвале, мощность в л.с.) -->
+                    <tr data-rpm="5000" data-eng-t="9.0" data-eng-hp="6.4">
+                        <td>5 000</td><td class="m-loss">-</td><td class="p-loss">-</td>
+                        <td class="m-ref">-</td><td class="p-ref">-</td>
+                        <td class="m-eng">-</td><td class="p-eng">-</td>
+                    </tr>
+                    <tr data-rpm="6000" data-eng-t="9.5" data-eng-hp="8.1">
+                        <td>6 000</td><td class="m-loss">-</td><td class="p-loss">-</td>
+                        <td class="m-ref">-</td><td class="p-ref">-</td>
+                        <td class="m-eng">-</td><td class="p-eng">-</td>
+                    </tr>
+                    <tr data-rpm="7000" data-eng-t="9.4" data-eng-hp="9.2">
+                        <td>7 000</td><td class="m-loss">-</td><td class="p-loss">-</td>
+                        <td class="m-ref">-</td><td class="p-ref">-</td>
+                        <td class="m-eng">-</td><td class="p-eng">-</td>
+                    </tr>
+                    <tr data-rpm="8000" data-eng-t="8.3" data-eng-hp="9.1">
+                        <td>8 000</td><td class="m-loss">-</td><td class="p-loss">-</td>
+                        <td class="m-ref">-</td><td class="p-ref">-</td>
+                        <td class="m-eng">-</td><td class="p-eng">-</td>
+                    </tr>
+                    <tr data-rpm="9000" data-eng-t="6.5" data-eng-hp="8.2">
+                        <td>9 000</td><td class="m-loss">-</td><td class="p-loss">-</td>
+                        <td class="m-ref">-</td><td class="p-ref">-</td>
+                        <td class="m-eng">-</td><td class="p-eng">-</td>
+                    </tr>
+                    <tr data-rpm="10000" data-eng-t="4.2" data-eng-hp="5.9">
+                        <td>10 000</td><td class="m-loss">-</td><td class="p-loss">-</td>
+                        <td class="m-ref">-</td><td class="p-ref">-</td>
+                        <td class="m-eng">-</td><td class="p-eng">-</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Диагностический вердикт -->
+    <div class="panel panel-full">
+        <span class="label">Диагностический вердикт ИИ</span>
+        <div id="diagLog" class="diagnostics-log">Ожидание старта... Проводите тест со снятым ремнем вариатора.</div>
+    </div>
+</div>
