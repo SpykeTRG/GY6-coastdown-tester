@@ -12,32 +12,21 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Inject Dynamic Version and Rename CSS
+      - name: Inject Dynamic Version into SW and HTML
         run: |
           BUILD_NUM="${{ github.run_number }}"
           
-          # 1. Прописываем физические имена файлов в Service Worker кэш
+          # Прописываем версию в Service Worker и HTML бейдж
           sed -i "s/BUILD_VERSION/$BUILD_NUM/g" sw.js
-          
-          # 2. Прописываем имя нового файла стилей и номер билда в HTML
           sed -i "s/BUILD_VERSION/$BUILD_NUM/g" index.html
-          sed -i "s/style-BUILD_VERSION.css/style-$BUILD_NUM.css/g" index.html
           
-          # 3. ФИЗИЧЕСКИ переименовываем файл стилей на сервере Ubuntu перед пушем
-          mv style.css style-$BUILD_NUM.css
-          
-          echo "Сборка #$BUILD_NUM: файл style.css переименован в style-$BUILD_NUM.css"
+          echo "Сборка под номером: $BUILD_NUM"
 
       - name: Commit and Push Updated Files
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@://github.com"
           
-          # Добавляем все измененные и ПЕРЕИМЕНОВАННЫЕ файлы
-          git add sw.js index.html style-*.css
-          
-          # Удаляем упоминание старого голого style.css из индекса гита, чтобы не было конфликтов
-          git rm style.css --cached || echo "Уже удален"
-          
-          git commit -m "chore: auto-rename CSS to build $GITHUB_RUN_NUMBER [skip ci]" || echo "No changes to commit"
-          git push --force
+          git add sw.js index.html
+          git commit -m "chore: auto-update build version to #$GITHUB_RUN_NUMBER [skip ci]" || echo "No changes to commit"
+          git push
