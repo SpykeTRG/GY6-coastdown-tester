@@ -61,9 +61,7 @@ permBtn.addEventListener('click', async () => {
     const hasMotionPerm = typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function';
     if (hasOrientationPerm || hasMotionPerm) {
         try {
-            let orientationGranted = false;
-            let motionGranted = false;
-            let audioGranted = false;
+            let orientationGranted = false; let motionGranted = false; let audioGranted = false;
             if (hasOrientationPerm) {
                 const orientResponse = await DeviceOrientationEvent.requestPermission();
                 if (orientResponse === 'granted') orientationGranted = true;
@@ -89,15 +87,13 @@ actionBtn.addEventListener('click', async () => {
     currentAngle = 0; lastAngle = 0; totalRotations = 0; totalDegreesTraveled = 0; isFirstAngle = true;
     oscData = []; angleSectors.fill(0); maxSectorValue = 0; impactTimeline = []; stopTimestamp = null; audioHistory = [];
     document.querySelectorAll('.m-loss, .p-loss, .m-ref, .p-ref, .m-eng, .p-eng').forEach(td => td.textContent = '-');
-    timerVal.innerHTML = '0.0 <span class="unit">сек</span>'; effVal.innerHTML = '0 <span class="unit">%</span>';
+    timerVal.innerHTML = '0.00 <span class="unit">ед.выб</span>'; effVal.innerHTML = '0 <span class="unit">%</span>';
     diagLog.innerHTML = "<span style='color:#f59e0b'>⚡ Автомат готов.</span> Резко толкните изолированное колесо вперед.";
     try {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const source = audioCtx.createMediaStreamSource(audioStream);
-        analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
-        source.connect(analyser);
+        analyser = audioCtx.createAnalyser(); analyser.fftSize = 256; source.connect(analyser);
     } catch (err) { console.log("Аудио-ошибка", err); }
     setTimeout(() => {
         if(currentState === STATE_WAITING_FOR_SPIN) {
@@ -123,9 +119,7 @@ function onOrientation(event) {
 }
 function onMotion(event) {
     if (currentState === STATE_IDLE || currentState === STATE_FINISHED) return;
-    const now = performance.now();
-    let omega_3d = 0;
-    const rot = event.rotationRate;
+    const now = performance.now(); let omega_3d = 0; const rot = event.rotationRate;
     if (rot) {
         let rX = rot.beta || 0; let rY = rot.gamma || 0; let rZ = rot.alpha || 0;
         omega_3d = Math.sqrt(rX*rX + rY*rY + rZ*rZ) / 57.2958; 
@@ -136,7 +130,8 @@ function onMotion(event) {
     }
     if (currentState === STATE_SPINNING) {
         const elapsedLive = (now - startTime) / 1000;
-        timerVal.innerHTML = elapsedLive.toFixed(1) + ' <span class="unit">сек</span>';
+        let liveIndex = totalDegreesTraveled > 0 ? (elapsedLive / (totalDegreesTraveled / 360)).toFixed(2) : "0.00";
+        timerVal.innerHTML = liveIndex + ' <span class="unit">ед (Эталон: 1.14)</span>';
         if (omega_3d < SPIN_STOP_THRESHOLD) {
             if (stopTimestamp === null) stopTimestamp = now; 
             else if (now - stopTimestamp > STOP_DURATION_MS) {
@@ -152,23 +147,17 @@ function onMotion(event) {
     if (currentState === STATE_SPINNING) {
         const acc = event.acceleration;
         if (acc) {
-            let ax = acc.x || 0; let ay = acc.y || 0; let az = acc.z || 0;
-            let totalVibeMagnitude = Math.sqrt(ax*ax + ay*ay + az*az);
+            let totalVibeMagnitude = Math.sqrt((acc.x||0)*(acc.x||0) + (acc.y||0)*(acc.y||0) + (acc.z||0)*(acc.z||0));
             if (totalVibeMagnitude < 0.6) totalVibeMagnitude = 0;
-            oscData.push(totalVibeMagnitude);
-            if (oscData.length > oscCanvas.clientWidth - 50) oscData.shift();
+            oscData.push(totalVibeMagnitude); if (oscData.length > oscCanvas.clientWidth - 50) oscData.shift();
             let audioVolume = 0;
             if (analyser) {
-                const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                analyser.getByteFrequencyData(dataArray);
+                const dataArray = new Uint8Array(analyser.frequencyBinCount); analyser.getByteFrequencyData(dataArray);
                 let highFreqSum = 0, count = 0;
-                for (let i = Math.floor(dataArray.length * 0.35); i < dataArray.length; i++) {
-                    highFreqSum += dataArray[i]; count++;
-                }
+                for (let i = Math.floor(dataArray.length * 0.35); i < dataArray.length; i++) { highFreqSum += dataArray[i]; count++; }
                 audioVolume = count > 0 ? (highFreqSum / count) / 25.5 : 0; 
             }
-            audioHistory.push(audioVolume);
-            if (audioHistory.length > audioCanvas.clientWidth - 50) audioHistory.shift();
+            audioHistory.push(audioVolume); if (audioHistory.length > audioCanvas.clientWidth - 50) audioHistory.shift();
             let combinedMetric = totalVibeMagnitude + audioVolume * 1.5;
             if (combinedMetric > 0) {
                 if (combinedMetric > angleSectors[currentAngle]) angleSectors[currentAngle] = combinedMetric;
@@ -180,20 +169,20 @@ function onMotion(event) {
 }
 function drawOscilloscope() {
     const w = oscCanvas.clientWidth; const h = oscCanvas.clientHeight; oscCtx.clearRect(0, 0, w, h);
-    const paddingLeft = 45; const paddingBottom = 20; const graphW = w - paddingLeft - 10; const graphH = h - paddingBottom - 10;
+    const paddingLeft = 45; const paddingBottom = 25; const graphW = w - paddingLeft - 10; const graphH = h - paddingBottom - 10;
     let maxInHistory = 2.0; for(let i=0; i<oscData.length; i++) { if(oscData[i] > maxInHistory) maxInHistory = oscData[i]; }
     let maxScaleY = Math.ceil(maxInHistory / 2) * 2; if (maxScaleY < 4) maxScaleY = 4; 
     oscCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)'; oscCtx.lineWidth = 0.5; oscCtx.fillStyle = '#ffffff'; oscCtx.font = '10px tabular-nums'; oscCtx.textAlign = 'right';
-    const yLines = 4;
-    for (let i = 0; i <= yLines; i++) {
-        let gValue = (maxScaleY / yLines) * i; let y = graphH + 10 - (graphH * (i / yLines));
-        oscCtx.beginPath(); oscCtx.moveTo(paddingLeft, y); oscCtx.lineTo(w - 10, y); oscCtx.stroke(); oscCtx.fillText(gValue.toFixed(1) + 'g', paddingLeft - 8, y + 3);
+    for (let i = 0; i <= 4; i++) {
+        let y = graphH + 10 - (graphH * (i / 4));
+        oscCtx.beginPath(); oscCtx.moveTo(paddingLeft, y); oscCtx.lineTo(w - 10, y); oscCtx.stroke(); oscCtx.fillText(((maxScaleY / 4) * i).toFixed(1) + 'g', paddingLeft - 8, y + 3);
     }
-    const xLines = 5; oscCtx.textAlign = 'center';
-    for (let i = 0; i < xLines; i++) {
-        let ratio = i / (xLines - 1); let x = paddingLeft + (graphW * ratio);
-        oscCtx.beginPath(); oscCtx.moveTo(x, 10); oscCtx.lineTo(x, graphH + 10); oscCtx.stroke(); oscCtx.fillText(Math.round(ratio * 100) + '%', x, h - 5);
+    oscCtx.textAlign = 'center';
+    for (let i = 0; i < 5; i++) {
+        let ratio = i / 4; let x = paddingLeft + (graphW * ratio);
+        oscCtx.beginPath(); oscCtx.moveTo(x, 10); oscCtx.lineTo(x, graphH + 10); oscCtx.stroke(); oscCtx.fillText(Math.round(ratio * 100) + '%', x, h - 14);
     }
+    oscCtx.fillText('(Эталон подшипников: Гладкая линия без прыжков и спайков выше 0.5g)', paddingLeft + graphW/2, h - 2);
     if (oscData.length < 2) return;
     oscCtx.strokeStyle = 'var(--orange)'; oscCtx.lineWidth = 2.5; oscCtx.beginPath();
     const stepX = graphW / (oscCanvas.clientWidth - 50);
@@ -204,7 +193,7 @@ function drawOscilloscope() {
     oscCtx.stroke();
 }
 function drawRadar() {
-    const w = radarCanvas.clientWidth; const h = radarCanvas.clientHeight; const cx = w / 2; const cy = h / 2; const r = Math.min(cx, cy) - 25; radarCtx.clearRect(0, 0, w, h);
+    const w = radarCanvas.clientWidth; const h = radarCanvas.clientHeight; const cx = w / 2; const cy = h / 2; const r = Math.min(cx, cy) - 30; radarCtx.clearRect(0, 0, w, h);
     radarCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)'; radarCtx.lineWidth = 0.5; radarCtx.fillStyle = '#ffffff'; radarCtx.font = '9px sans-serif'; radarCtx.textAlign = 'left';
     let rings = [r, r * 0.66, r * 0.33]; let ringLabels = ['Max EP', 'Mid', 'Low'];
     rings.forEach((radius, idx) => {
@@ -216,6 +205,7 @@ function drawRadar() {
         radarCtx.beginPath(); radarCtx.moveTo(cx, cy); radarCtx.lineTo(cx + r * Math.cos(rad), cy + r * Math.sin(rad)); radarCtx.stroke();
         radarCtx.fillText(i + '°', cx + (r + 14) * Math.cos(rad), cy + (r + 14) * Math.sin(rad) + 3);
     }
+    radarCtx.fillText('(Эталон: Идеальный пустой круг без направленных лучей заклинивания)', cx, h - 4);
     if (maxSectorValue === 0) return;
     for (let i = 0; i < 360; i++) {
         const val = angleSectors[i];
@@ -228,19 +218,18 @@ function drawRadar() {
 }
 function drawAudioSpectrum() {
     const w = audioCanvas.clientWidth; const h = audioCanvas.clientHeight; audioCtxCanvas.clearRect(0, 0, w, h);
-    const paddingLeft = 45; const paddingBottom = 20; const graphW = w - paddingLeft - 10; const graphH = h - paddingBottom - 10;
+    const paddingLeft = 45; const paddingBottom = 25; const graphW = w - paddingLeft - 10; const graphH = h - paddingBottom - 10;
     audioCtxCanvas.strokeStyle = 'rgba(255, 255, 255, 0.25)'; audioCtxCanvas.lineWidth = 0.5; audioCtxCanvas.fillStyle = '#ffffff'; audioCtxCanvas.font = '10px tabular-nums'; audioCtxCanvas.textAlign = 'right';
     for (let i = 0; i <= 4; i++) {
         let y = graphH + 10 - (graphH * (i / 4));
-        audioCtxCanvas.beginPath(); audioCtxCanvas.moveTo(paddingLeft, y); audioCtxCanvas.lineTo(w - 10, y); audioCtxCanvas.stroke();
-        audioCtxCanvas.fillText((i * 25) + '%', paddingLeft - 8, y + 3);
+        audioCtxCanvas.beginPath(); audioCtxCanvas.moveTo(paddingLeft, y); audioCtxCanvas.lineTo(w - 10, y); audioCtxCanvas.stroke(); audioCtxCanvas.fillText((i * 25) + '%', paddingLeft - 8, y + 3);
     }
     audioCtxCanvas.textAlign = 'center';
     for (let i = 0; i < 5; i++) {
         let ratio = i / 4; let x = paddingLeft + (graphW * ratio);
-        audioCtxCanvas.beginPath(); audioCtxCanvas.moveTo(x, 10); audioCtxCanvas.lineTo(x, graphH + 10); audioCtxCanvas.stroke();
-        audioCtxCanvas.fillText(Math.round(ratio * 100) + '%', x, h - 5);
+        audioCtxCanvas.beginPath(); audioCtxCanvas.moveTo(x, 10); audioCtxCanvas.lineTo(x, graphH + 10); audioCtxCanvas.stroke(); audioCtxCanvas.fillText(Math.round(ratio * 100) + '%', x, h - 14);
     }
+    audioCtxCanvas.fillText('(Эталон шума: Фоновая линия ниже 15%. Вой редуктора дает пики до 70-100%)', paddingLeft + graphW/2, h - 2);
     if (audioHistory.length < 2) return;
     audioCtxCanvas.strokeStyle = '#10b981'; audioCtxCanvas.lineWidth = 2.0; audioCtxCanvas.beginPath();
     const stepX = graphW / (audioCanvas.clientWidth - 50);
@@ -251,11 +240,13 @@ function drawAudioSpectrum() {
     audioCtxCanvas.stroke();
 }
 function analyzeAdvancedResults(automatedElapsed) {
-    const elapsed = automatedElapsed; timerVal.innerHTML = elapsed.toFixed(1) + ' <span class="unit">сек</span>';
+    const elapsed = automatedElapsed;
     if (totalDegreesTraveled < 90) { effVal.innerHTML = '0 <span class="unit">%</span>'; diagLog.innerHTML = "❌ <b>ОШИБКА 3D-АНАЛИЗА:</b> Недостаточный угол прокрутки."; return; }
+    let выбегИндекс = elapsed / (totalDegreesTraveled / 360);
+    timerVal.innerHTML = выбегИндекс.toFixed(2) + ' <span class="unit">ед (Идеал: 1.14)</span>';
+    let finalEff = Math.round((выбегИндекс / 1.14) * 100); if (finalEff > 150) finalEff = 150; effVal.innerHTML = finalEff + ' <span class="unit">%</span>';
     let totalRadians = (totalDegreesTraveled * Math.PI) / 180; let omega_start_wheel = (2 * totalRadians) / elapsed; let epsilon_wheel = omega_start_wheel / elapsed;
     let J_isolated = 0.142; let T_base_wheel = J_isolated * epsilon_wheel; 
-    let finalEff = Math.round((elapsed / 4.0) * 100); if (finalEff > 150) finalEff = 150; effVal.innerHTML = finalEff + ' <span class="unit">%</span>';
     let gear_ratio = 8.3; let omega_ref = 50.0; let ref_elapsed = 4.0; let ref_radians = (3.5 * 360 * Math.PI) / 180; let ref_omega_start = (2 * ref_radians) / ref_elapsed; let ref_epsilon = ref_omega_start / ref_elapsed; let T_base_ref = J_isolated * ref_epsilon;
     document.querySelectorAll('#lossTable tbody tr').forEach(row => {
         let motor_rpm = parseInt(row.getAttribute('data-rpm')); let eng_torque_crank = parseFloat(row.getAttribute('data-eng-t')); let eng_hp = parseFloat(row.getAttribute('data-eng-hp'));
@@ -271,22 +262,18 @@ function analyzeAdvancedResults(automatedElapsed) {
     });
     if (totalRotations === 0) totalRotations = 1;
     const impactsPerRotation = impactTimeline.length / totalRotations;
-    let report = `<b>Интеллектуальный 3D-тест окончен.</b> Накат редуктора: <b>${finalEff}%</b><br><br>`;
-    if (elapsed >= 3.5) {
-        report += `✅ <b>ЭТАЛОННЫЕ ПОКАЗАТЕЛИ:</b> Потери вашего редуктора полностью соответствуют заводскому эталону (см. таблицу). Подшипники NSK не изменят динамику, узел идеален.`;
-    } else {
-        let current_loss_8k = parseFloat(document.querySelector('tr[data-rpm="8000"] .p-loss').textContent);
-        let ref_loss_8k = parseFloat(document.querySelector('tr[data-rpm="8000"] .p-ref').textContent);
-        report += `❌ <b>ОБНАРУЖЕНЫ КИНЕТИЧЕСКИЕ ПОТЕРИ:</b> Ваш редуктор зажат. На рабочих 8000 RPM он крадет у мотора на <b> ${(current_loss_8k - ref_loss_8k).toFixed(3)} л.с.</b> больше, чем эталонный узел. `;
-        if (impactsPerRotation > 5.0) report += `<br><br>➔ Из-за высокой плотности 3D-ударов и акустического фона виноваты раковины в подшипниках. <b>Установка оригинальных NSK/SKF вернет эти силы на колесо.</b>`;
-        else report += `<br><br>➔ Ударов нет, но трение повышено. Проверьте, не залито ли слишком густое масло и не зажаты ли валы регулировочными шайбами крышки редуктора.`;
+    let report = `<b>Интеллектуальный 3D-тест окончен.</b> Индекс выбега: <b>${выбегИндекс.toFixed(2)} с/об</b> (Накат: ${finalEff}%)<br><br>`;
+    if (выбегИндекс >= 1.0) { report += `✅ <b>ЭТАЛОННЫЕ ПОКАЗАТЕЛИ:</b> Приведенный выбег соответствует заводскому эталону. Модель потерь стабильна. Подшипники NSK не требуются.`; }
+    else {
+        let current_loss_8k = parseFloat(document.querySelector('tr[data-rpm="8000"] .p-loss').textContent); let ref_loss_8k = parseFloat(document.querySelector('tr[data-rpm="8000"] .p-ref').textContent);
+        report += `❌ <b>ОБНАРУЖЕНЫ КИНЕТИЧЕСКИЕ ПОТЕРИ:</b> Узел зажат. На рабочих 8000 RPM он крадет у мотора на <b> ${(current_loss_8k - ref_loss_8k).toFixed(3)} л.с.</b> больше нормы. `;
+        if (impactsPerRotation > 5.0) report += `<br><br>➔ Высокая плотность 3D-ударов и акустический фон подтверждают раковины. <b>Установка NSK/SKF вернет эти силы на колесо.</b>`;
+        else report += `<br><br>➔ Ударов нет, но трение повышено. Проверьте вязкость масла или зажим регулировочных шайб валов.`;
     }
     diagLog.innerHTML = report;
 }
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js')
-            .then(reg => console.log('PWA активен', reg))
-            .catch(err => console.log('Ошибка PWA:', err));
+        navigator.serviceWorker.register('sw.js').then(reg => console.log('PWA активен', reg)).catch(err => console.log('Ошибка PWA:', err));
     });
 }
