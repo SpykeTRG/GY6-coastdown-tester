@@ -1,5 +1,4 @@
-// ПРИ ОБНОВЛЕНИИ ПРОСТО МЕНЯЙТЕ v1 НА v2, v3 И Т.Д.
-const CACHE_NAME = 'gy6-telemetry-v5'; 
+const CACHE_NAME = 'gy6-telemetry-BUILD_VERSION';
 
 const ASSETS = [
   'index.html',
