@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gy6-telemetry-BUILD_VERSION'; 
+const CACHE_NAME = 'gy6-telemetry-13'; 
 
 const ASSETS = [
   'index.html',
