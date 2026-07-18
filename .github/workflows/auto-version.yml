@@ -1,0 +1,39 @@
+name: Auto Version SW Cache
+
+on:
+  push:
+    branches:
+      - main  # Сценарий срабатывает при каждом сохранении (push) в ветку main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Inject Dynamic Version into SW and HTML
+        run: |
+          # 1. Берем уникальный последовательный номер запуска робота на сервере
+          BUILD_NUM="${{ github.run_number }}"
+          
+          # 2. Переписываем маркер версии внутри Service Worker для сброса старого кэша на iPhone
+          sed -i "s/BUILD_VERSION/$BUILD_NUM/g" sw.js
+          
+          # 3. Переписываем маркер версии в HTML для вывода номера на экране приложения
+          sed -i "s/BUILD_VERSION/$BUILD_NUM/g" index.html
+          
+          echo "Инициирована сборка под номером: $BUILD_NUM"
+
+      - name: Commit and Push Updated Files
+        run: |
+          # Автоматически авторизуем встроенного робота GitHub
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@://github.com"
+          
+          # Фиксируем изменения в измененных роботом файлах
+          git add sw.js index.html
+          git commit -m "chore: auto-update build version to #$GITHUB_RUN_NUMBER [skip ci]" || echo "No changes to commit"
+          
+          # Отправляем обновленный код обратно в ваш репозиторий
+          git push
