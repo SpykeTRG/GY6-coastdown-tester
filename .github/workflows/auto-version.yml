@@ -16,11 +16,11 @@ jobs:
         run: |
           BUILD_NUM="${{ github.run_number }}"
           
-          # Прописываем версию в Service Worker и HTML бейдж
+          # Жестко прописываем новый номер билда в Service Worker и разметку
           sed -i "s/BUILD_VERSION/$BUILD_NUM/g" sw.js
           sed -i "s/BUILD_VERSION/$BUILD_NUM/g" index.html
           
-          echo "Сборка под номером: $BUILD_NUM"
+          echo "Сгенерирована сборка под номером: $BUILD_NUM"
 
       - name: Commit and Push Updated Files
         run: |
