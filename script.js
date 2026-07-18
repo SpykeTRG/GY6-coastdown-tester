@@ -167,6 +167,7 @@ function onMotion(event) {
         }
     }
 }
+
 function drawOscilloscope() {
     const w = oscCanvas.clientWidth; const h = oscCanvas.clientHeight; oscCtx.clearRect(0, 0, w, h);
     const paddingLeft = 45; const paddingBottom = 25; const graphW = w - paddingLeft - 10; const graphH = h - paddingBottom - 10;
@@ -184,7 +185,7 @@ function drawOscilloscope() {
     }
     oscCtx.fillText('(Эталон подшипников: Гладкая линия без прыжков и спайков выше 0.5g)', paddingLeft + graphW/2, h - 2);
     if (oscData.length < 2) return;
-    oscCtx.strokeStyle = 'var(--orange)'; oscCtx.lineWidth = 2.5; oscCtx.beginPath();
+    oscCtx.strokeStyle = '#f97316'; oscCtx.lineWidth = 2.5; oscCtx.beginPath();
     const stepX = graphW / (oscCanvas.clientWidth - 50);
     for (let i = 0; i < oscData.length; i++) {
         let x = paddingLeft + (i * stepX); let y = graphH + 10 - (graphH * (oscData[i] / maxScaleY));
@@ -192,6 +193,7 @@ function drawOscilloscope() {
     }
     oscCtx.stroke();
 }
+
 function drawRadar() {
     const w = radarCanvas.clientWidth; const h = radarCanvas.clientHeight; const cx = w / 2; const cy = h / 2; const r = Math.min(cx, cy) - 30; radarCtx.clearRect(0, 0, w, h);
     radarCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)'; radarCtx.lineWidth = 0.5; radarCtx.fillStyle = '#ffffff'; radarCtx.font = '9px sans-serif'; radarCtx.textAlign = 'left';
@@ -211,7 +213,7 @@ function drawRadar() {
         const val = angleSectors[i];
         if (val > 0) {
             const magnitude = (val / maxSectorValue) * r; const rad = (i - 90) * Math.PI / 180;
-            radarCtx.strokeStyle = `rgba(139, 92, 246, ${Math.min(val/maxSectorValue + 0.2, 1)})`; radarCtx.lineWidth = 2.5;
+            radarCtx.strokeStyle = 'rgba(139, 92, 246, ' + Math.min(val/maxSectorValue + 0.2, 1) + ')'; radarCtx.lineWidth = 2.5;
             radarCtx.beginPath(); radarCtx.moveTo(cx, cy); radarCtx.lineTo(cx + magnitude * Math.cos(rad), cy + magnitude * Math.sin(rad)); radarCtx.stroke();
         }
     }
@@ -239,6 +241,7 @@ function drawAudioSpectrum() {
     }
     audioCtxCanvas.stroke();
 }
+
 function analyzeAdvancedResults(automatedElapsed) {
     const elapsed = automatedElapsed;
     if (totalDegreesTraveled < 90) { effVal.innerHTML = '0 <span class="unit">%</span>'; diagLog.innerHTML = "❌ <b>ОШИБКА 3D-АНАЛИЗА:</b> Недостаточный угол прокрутки."; return; }
