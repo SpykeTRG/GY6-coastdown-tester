@@ -257,4 +257,10 @@ function analyzeAdvancedResults(automatedElapsed) {
     }
     diagLog.innerHTML = report;
 }
-
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+            .then(reg => console.log('PWA офлайн режим активирован', reg))
+            .catch(err => console.log('Ошибка PWA:', err));
+    });
+}
