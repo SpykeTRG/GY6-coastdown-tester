@@ -149,13 +149,15 @@ canvas {
 .table-container { 
     margin-top: 6px; 
     width: 100%; 
+    overflow-x: auto;
 }
 
 table { 
     width: 100%; 
     border-collapse: collapse; 
     text-align: left; 
-    font-size: 13px; 
+    font-size: 12px; 
+    min-width: 450px;
 }
 
 th { 
@@ -188,6 +190,15 @@ td {
     line-height: 1.4; 
     border-left: 3px solid var(--accent); 
     padding-left: 10px; 
+}
+
+/* Стилизация неактивного состояния кнопок на iOS */
+.btn:disabled {
+    opacity: 0.4;
+    background: #141419;
+    color: var(--text-dim);
+    border-color: var(--border);
+    cursor: not-allowed;
 }
 
 @keyframes pulse {
