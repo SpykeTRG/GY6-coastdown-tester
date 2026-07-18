@@ -43,6 +43,9 @@ function resizeDisplay() {
 	radarCanvas.width = radarCanvas.clientWidth * dpr;
 	radarCanvas.height = radarCanvas.clientHeight * dpr;
 	radarCtx.scale(dpr, dpr);
+
+	drawOscilloscope();
+	drawRadar();
 }
 window.addEventListener('resize', resizeDisplay);
 setTimeout(resizeDisplay, 100);
@@ -55,51 +58,44 @@ function uiRenderLoop() {
 	}
 }
 
-// НАДЁЖНЫЙ ЗАПРОС ПРАВ ДЛЯ IOS 13+ (ОБЕИХ СИСТЕМ: ORIENTATION + MOTION)
 permBtn.addEventListener('click', async () => {
-    // Проверяем, требует ли iOS разрешения для DeviceOrientation
-    const hasOrientationPerm = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function';
-    // Проверяем, требует ли iOS разрешения для DeviceMotion
-    const hasMotionPerm = typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function';
+	const hasOrientationPerm = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function';
+	const hasMotionPerm = typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function';
 
-    if (hasOrientationPerm || hasMotionPerm) {
-        try {
-            let orientationGranted = false;
-            let motionGranted = false;
+	if (hasOrientationPerm || hasMotionPerm) {
+		try {
+			let orientationGranted = false;
+			let motionGranted = false;
 
-            // 1. Запрашиваем доступ к углам поворота (Гироскоп/Компас)
-            if (hasOrientationPerm) {
-                const orientResponse = await DeviceOrientationEvent.requestPermission();
-                if (orientResponse === 'granted') orientationGranted = true;
-            } else {
-                orientationGranted = true; // Если не iOS, то доступ есть по умолчанию
-            }
+			if (hasOrientationPerm) {
+				const orientResponse = await DeviceOrientationEvent.requestPermission();
+				if (orientResponse === 'granted') orientationGranted = true;
+			} else {
+				orientationGranted = true;
+			}
 
-            // 2. Запрашиваем доступ к линейным ускорениям (Акселерометр)
-            if (hasMotionPerm) {
-                const motionResponse = await DeviceMotionEvent.requestPermission();
-                if (motionResponse === 'granted') motionGranted = true;
-            } else {
-                motionGranted = true;
-            }
+			if (hasMotionPerm) {
+				const motionResponse = await DeviceMotionEvent.requestPermission();
+				if (motionResponse === 'granted') motionGranted = true;
+			} else {
+				motionGranted = true;
+			}
 
-            // Проверяем, что оба датчика успешно активированы
-            if (orientationGranted && motionGranted) {
-                permBtn.style.display = 'none';
-                actionBtn.disabled = false;
-                diagLog.innerHTML = "<span style='color:var(--green)'>✓ Все датчики iOS 13+ успешно активированы!</span><br>Закрепите iPhone на спице, нажмите кнопку и толкайте колесо.";
-            } else {
-                alert('Ошибка: Вы не дали доступ к одному из датчиков. Перезагрузите страницу и разрешите оба.');
-            }
+			if (orientationGranted && motionGranted) {
+				permBtn.style.display = 'none';
+				actionBtn.disabled = false;
+				diagLog.innerHTML = "<span style='color:var(--green)'>✓ Все датчики iOS 13+ успешно активированы!</span><br>Закрепите iPhone на спице, нажмите кнопку и толкайте колесо.";
+			} else {
+				alert('Ошибка: Вы не дали доступ к одному из датчиков. Перезагрузите страницу и разрешите оба.');
+			}
 
-        } catch (e) {
-            alert('Ошибка калибровки CoreMotion iOS: ' + e);
-        }
-    } else {
-        // Логика для Android или старых iOS (где разрешения не требуются)
-        permBtn.style.display = 'none';
-        actionBtn.disabled = false;
-    }
+		} catch (e) {
+			alert('Ошибка калибровки CoreMotion iOS: ' + e);
+		}
+	} else {
+		permBtn.style.display = 'none';
+		actionBtn.disabled = false;
+	}
 });
 
 actionBtn.addEventListener('click', () => {
@@ -122,12 +118,12 @@ actionBtn.addEventListener('click', () => {
 	document.querySelectorAll('.m-loss, .p-loss, .m-ref, .p-ref, .m-eng, .p-eng').forEach(td => td.textContent = '-');
 	timerVal.innerHTML = '0.0 <span style="font-size:16px">сек</span>';
 	effVal.innerHTML = '0 <span style="font-size:16px">%</span>';
-	diagLog.innerHTML = "<span style='color:#f59e0b'>⚡ Автомат взведен.</span> Выставите колесо меткой вверх и через 1 секунду резко толкните его вперед.";
+	diagLog.innerHTML = "<span style='color:#f59e0b'>⚡ Автомат готов.</span> Резко толкните изолированное колесо вперед.";
 
 	setTimeout(() => {
 		if (currentState === STATE_WAITING_FOR_SPIN) {
 			actionBtn.textContent = 'ВЗВЕДЕНО! ТОЛКАЙТЕ!';
-			diagLog.innerHTML = "<span style='color:var(--green)'>🚀 СТАРТ ГОТОВ.</span> Толкайте голое колесо со всей силы!";
+			diagLog.innerHTML = "<span style='color:var(--green)'>🚀 СТАРТ ГОТОВ.</span> Толкайте колесо со всей силы!";
 		}
 	}, 1000);
 
@@ -271,9 +267,24 @@ function drawOscilloscope() {
 		oscCtx.fillText(gValue.toFixed(1) + 'g', paddingLeft - 8, y + 3);
 	}
 
+	const xLines = 5;
+	oscCtx.textAlign = 'center';
+	for (let i = 0; i < xLines; i++) {
+		let ratio = i / (xLines - 1);
+		let x = paddingLeft + (graphW * ratio);
+		oscCtx.beginPath();
+		oscCtx.moveTo(x, 10);
+		oscCtx.lineTo(x, graphH + 10);
+		oscCtx.stroke();
+
+		let percentLabel = Math.round(ratio * 100) + '%';
+		oscCtx.fillText(percentLabel, x, h - 5);
+	}
+
 	if (oscData.length < 2) return;
-	oscCtx.strokeStyle = 'var(--red)';
-	oscCtx.lineWidth = 2;
+
+	oscCtx.strokeStyle = 'var(--orange)';
+	oscCtx.lineWidth = 2.5;
 	oscCtx.beginPath();
 	const stepX = graphW / (oscCanvas.clientWidth - 50);
 	for (let i = 0; i < oscData.length; i++) {
@@ -292,18 +303,19 @@ function drawRadar() {
 	const cy = h / 2;
 	const r = Math.min(cx, cy) - 25;
 	radarCtx.clearRect(0, 0, w, h);
-
 	radarCtx.strokeStyle = 'var(--grid-line)';
 	radarCtx.lineWidth = 0.5;
+	radarCtx.fillStyle = 'var(--text-dim)';
+	radarCtx.font = '9px sans-serif';
+	radarCtx.textAlign = 'left';
 	let rings = [r, r * 0.66, r * 0.33];
-	rings.forEach(radius => {
+	let ringLabels = ['Max EP', 'Mid', 'Low'];
+	rings.forEach((radius, idx) => {
 		radarCtx.beginPath();
 		radarCtx.arc(cx, cy, radius, 0, 2 * Math.PI);
 		radarCtx.stroke();
+		radarCtx.fillText(ringLabels[idx], cx + 5, cy - radius + 10);
 	});
-
-	radarCtx.fillStyle = 'var(--text-dim)';
-	radarCtx.font = '10px sans-serif';
 	radarCtx.textAlign = 'center';
 	for (let i = 0; i < 360; i += 45) {
 		let rad = (i - 90) * Math.PI / 180;
@@ -315,7 +327,6 @@ function drawRadar() {
 		let textY = cy + (r + 14) * Math.sin(rad) + 3;
 		radarCtx.fillText(i + '°', textX, textY);
 	}
-
 	if (maxSectorValue === 0) return;
 	for (let i = 0; i < 360; i++) {
 		const val = angleSectors[i];
@@ -324,7 +335,9 @@ function drawRadar() {
 			const rad = (i - 90) * Math.PI / 180;
 			const x = cx + magnitude * Math.cos(rad);
 			const y = cy + magnitude * Math.sin(rad);
-			radarCtx.strokeStyle = `rgba(139, 92, 246, ${Math.min(val/maxSectorValue + 0.2, 1)})`;
+			radarCtx.strokeStyle = rgba(249, 115, 22, $ {
+				Math.min(val / maxSectorValue + 0.3, 1)
+			});
 			radarCtx.lineWidth = 2.5;
 			radarCtx.beginPath();
 			radarCtx.moveTo(cx, cy);
@@ -378,26 +391,26 @@ function analyzeAdvancedResults(automatedElapsed) {
 		row.querySelector('.m-loss').textContent = T_loss_wheel_high.toFixed(2) + ' Нм';
 		row.querySelector('.p-loss').textContent = HP_loss.toFixed(4) + ' лс';
 		row.querySelector('.m-ref').textContent = T_loss_wheel_ref.toFixed(2) + ' Нм';
-        row.querySelector('.p-ref').textContent = HP_loss_ref.toFixed(4) + ' лс';
-        row.querySelector('.m-eng').textContent = eng_torque_wheel.toFixed(1) + ' Нм';
-        row.querySelector('.p-eng').textContent = eng_hp.toFixed(1) + ' лс';
-    });
-    if (totalRotations === 0) totalRotations = 1;
-    const totalImpacts = impactTimeline.length;
-    const impactsPerRotation = totalImpacts / totalRotations;
-    let report = `< b > Интеллектуальный 3 D - тест окончен. < /b> Накат редуктора: <b>${finalEff}%</b > < br > < br > `;
-    if (elapsed >= 3.5) {
-        report += `✅ < b > ЭТАЛОННЫЕ ПОКАЗАТЕЛИ: </b> Потери вашего редуктора полностью соответствуют заводскому эталону (см. таблицу). Подшипники NSK не изменят динамику, узел идеален.`;
-    } else {
-        let current_loss_8k = parseFloat(document.querySelector('tr[data-rpm="8000"] .p-loss').textContent);
-        let ref_loss_8k = parseFloat(document.querySelector('tr[data-rpm="8000"] .p-ref').textContent);
-        let delta_hp = current_loss_8k - ref_loss_8k;
-        report += `❌ < b > ОБНАРУЖЕНЫ КИНЕТИЧЕСКИЕ ПОТЕРИ: < /b > Ваш редуктор зажат.На рабочих 8000 RPM он крадет у мотора на < b > ${delta_hp.toFixed(3)}	л.с. < /b> больше, чем эталонный узел. `;
-        if (impactsPerRotation > 5.0) {
-            report += `<br><br>➔ Из-за высокой плотности 3D-ударов виноваты раковины в подшипниках. <b>Установка оригинальных NSK/SKF вернет эти силы на колесо. < /b>`;
-        } else {
-            report += `< br > < br > ➔Ударов нет, но трение повышено.Проверьте, не залито ли слишком густое масло и не зажаты ли валы регулировочными шайбами крышки редуктора.`;
-        }
-    }
-    diagLog.innerHTML = report;
+		row.querySelector('.p-ref').textContent = HP_loss_ref.toFixed(4) + ' лс';
+		row.querySelector('.m-eng').textContent = eng_torque_wheel.toFixed(1) + ' Нм';
+		row.querySelector('.p-eng').textContent = eng_hp.toFixed(1) + ' лс';
+	});
+	if (totalRotations === 0) totalRotations = 1;
+	const totalImpacts = impactTimeline.length;
+	const impactsPerRotation = totalImpacts / totalRotations;
+	let report = `< b > Интеллектуальный 3 D - тест окончен. < /b> Накат редуктора: <b>${finalEff}%</b > < br > < br > `;
+	if (elapsed >= 3.5) {
+		report += `✅ < b > ЭТАЛОННЫЕ ПОКАЗАТЕЛИ: < /b> Потери вашего редуктора полностью соответствуют заводскому эталону (см. таблицу). Подшипники NSK не изменят динамику, узел идеален.`;
+	} else {
+		let current_loss_8k = parseFloat(document.querySelector('tr[data-rpm="8000"] .p-loss').textContent);
+		let ref_loss_8k = parseFloat(document.querySelector('tr[data-rpm="8000"] .p-ref').textContent);
+		let delta_hp = current_loss_8k - ref_loss_8k;
+		report += `❌ <b>ОБНАРУЖЕНЫ КИНЕТИЧЕСКИЕ ПОТЕРИ:</b > Ваш редуктор зажат.На рабочих 8000 RPM он крадет у мотора на < b > ${delta_hp.toFixed(3)}л.с. < /b> больше, чем эталонный узел. `;
+		if (impactsPerRotation > 5.0) {
+			report += `<br><br>➔ Из-за высокой плотности 3D-ударов виноваты раковины в подшипниках. <b>Установка оригинальных NSK/SKF вернет эти силы на колесо. < /b>`;
+		} else {
+			report += `<br><br>➔ Ударов нет, но трение повышено. Проверьте, не залито ли слишком густое масло и не зажаты ли валы регулировочными шайбами крышки редуктора.`;
+		}
+	}
+	diagLog.innerHTML = report;
 }
