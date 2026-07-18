@@ -6,7 +6,7 @@
     --accent-glow: rgba(139, 92, 246, 0.2);
     --green: #10b981;
     --red: #ef4444;
-    --orange: #f97316; /* Новый яркий оранжевый цвет */
+    --orange: #f97316;
     --text: #f4f4f5;
     --text-dim: #71717a;
     --grid-line: rgba(39, 39, 42, 0.6);
@@ -36,6 +36,7 @@ h1 {
     font-size: 20px; 
     font-weight: 800; 
     letter-spacing: -0.5px; 
+    color: #ffffff;
 }
 
 .subtitle { 
@@ -79,7 +80,6 @@ h1 {
 .btn-recording { 
     background: var(--red); 
     color: white; 
-    animation: pulse 2s infinite; 
 }
 
 .hud-grid { 
@@ -121,6 +121,10 @@ h1 {
     font-weight: 800; 
     font-variant-numeric: tabular-nums; 
 }
+
+.timer-color { color: #8b5cf6; }
+.eff-color { color: #10b981; }
+.unit { font-size: 16px; }
 
 .canvas-container { 
     width: 100%; 
