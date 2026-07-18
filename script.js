@@ -7,6 +7,8 @@ const oscCanvas = document.getElementById('oscCanvas');
 const oscCtx = oscCanvas.getContext('2d');
 const radarCanvas = document.getElementById('radarCanvas');
 const radarCtx = radarCanvas.getContext('2d');
+const audioCanvas = document.getElementById('audioCanvas');
+const audioCtxCanvas = audioCanvas.getContext('2d');
 const STATE_IDLE = 0;
 const STATE_WAITING_FOR_SPIN = 1;
 const STATE_SPINNING = 2;
@@ -20,120 +22,105 @@ let totalDegreesTraveled = 0;
 let isFirstAngle = true;
 let currentAngle = 0;
 let oscData = [];
-let angleSectors = new Array(360).fill(0);
+let angleSectors = new Array(360).fill(0); 
 let maxSectorValue = 0;
-let impactTimeline = [];
-const SPIN_START_THRESHOLD = 1.2;
-const SPIN_STOP_THRESHOLD = 0.18;
-const STOP_DURATION_MS = 450;
+let impactTimeline = []; 
+let audioHistory = [];
+const SPIN_START_THRESHOLD = 1.2;  
+const SPIN_STOP_THRESHOLD = 0.18;  
+const STOP_DURATION_MS = 450;      
 let stopTimestamp = null;
-
+let audioCtx = null, audioStream = null, analyser = null;
 function resizeDisplay() {
-	const dpr = window.devicePixelRatio || 1;
-	oscCanvas.width = oscCanvas.clientWidth * dpr;
-	oscCanvas.height = oscCanvas.clientHeight * dpr;
-	oscCtx.scale(dpr, dpr);
-	radarCanvas.width = radarCanvas.clientWidth * dpr;
-	radarCanvas.height = radarCanvas.clientHeight * dpr;
-	radarCtx.scale(dpr, dpr);
-	drawOscilloscope();
-	drawRadar();
+    const dpr = window.devicePixelRatio || 1;
+    oscCanvas.width = oscCanvas.clientWidth * dpr;
+    oscCanvas.height = oscCanvas.clientHeight * dpr;
+    oscCtx.scale(dpr, dpr);
+    radarCanvas.width = radarCanvas.clientWidth * dpr;
+    radarCanvas.height = radarCanvas.clientHeight * dpr;
+    radarCtx.scale(dpr, dpr);
+    audioCanvas.width = audioCanvas.clientWidth * dpr;
+    audioCanvas.height = audioCanvas.clientHeight * dpr;
+    audioCtxCanvas.scale(dpr, dpr);
+    drawOscilloscope();
+    drawRadar();
+    drawAudioSpectrum();
 }
 window.addEventListener('resize', resizeDisplay);
 setTimeout(resizeDisplay, 100);
-
 function uiRenderLoop() {
-	if (currentState === STATE_SPINNING || currentState === STATE_WAITING_FOR_SPIN) {
-		drawOscilloscope();
-		drawRadar();
-		requestAnimationFrame(uiRenderLoop);
-	}
+    if (currentState === STATE_SPINNING || currentState === STATE_WAITING_FOR_SPIN) {
+        drawOscilloscope();
+        drawRadar();
+        drawAudioSpectrum();
+        requestAnimationFrame(uiRenderLoop);
+    }
 }
 permBtn.addEventListener('click', async () => {
-	const hasOrientationPerm = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function';
-	const hasMotionPerm = typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function';
-	if (hasOrientationPerm || hasMotionPerm) {
-		try {
-			let orientationGranted = false;
-			let motionGranted = false;
-			if (hasOrientationPerm) {
-				const orientResponse = await DeviceOrientationEvent.requestPermission();
-				if (orientResponse === 'granted') orientationGranted = true;
-			} else {
-				orientationGranted = true;
-			}
-			if (hasMotionPerm) {
-				const motionResponse = await DeviceMotionEvent.requestPermission();
-				if (motionResponse === 'granted') motionGranted = true;
-			} else {
-				motionGranted = true;
-			}
-			if (orientationGranted && motionGranted) {
-				permBtn.style.display = 'none';
-				actionBtn.disabled = false;
-				diagLog.innerHTML = "<span style='color:var(--green)'>✓ Все датчики iOS 13+ успешно активированы!</span><br>Закрепите iPhone на спице, нажмите кнопку и толкайте колесо.";
-			} else {
-				alert('Ошибка: Вы не дали доступ к одному из датчиков. Перезагрузите страницу и разрешите оба.');
-			}
-		} catch (e) {
-			alert('Ошибка калибровки CoreMotion iOS: ' + e);
-		}
-	} else {
-		permBtn.style.display = 'none';
-		actionBtn.disabled = false;
-	}
+    const hasOrientationPerm = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function';
+    const hasMotionPerm = typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function';
+    if (hasOrientationPerm || hasMotionPerm) {
+        try {
+            let orientationGranted = false;
+            let motionGranted = false;
+            let audioGranted = false;
+            if (hasOrientationPerm) {
+                const orientResponse = await DeviceOrientationEvent.requestPermission();
+                if (orientResponse === 'granted') orientationGranted = true;
+            } else { orientationGranted = true; }
+            if (hasMotionPerm) {
+                const motionResponse = await DeviceMotionEvent.requestPermission();
+                if (motionResponse === 'granted') motionGranted = true;
+            } else { motionGranted = true; }
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                if (stream) { audioGranted = true; stream.getTracks().forEach(track => track.stop()); }
+            } catch (err) { alert('Микрофон заблокирован.'); }
+            if (orientationGranted && motionGranted && audioGranted) {
+                permBtn.style.display = 'none'; actionBtn.disabled = false;
+                diagLog.innerHTML = "<span style='color:var(--green)'>✓ Датчики и микрофон активированы!</span><br>Толкайте колесо.";
+                resizeDisplay();
+            } else { alert('Ошибка: Дайте доступ ко всем датчикам и микрофону.'); }
+        } catch (e) { alert('Ошибка калибровки CoreMotion iOS: ' + e); }
+    } else { permBtn.style.display = 'none'; actionBtn.disabled = false; }
 });
-actionBtn.addEventListener('click', () => {
-	currentState = STATE_WAITING_FOR_SPIN;
-	actionBtn.textContent = 'КАЛИБРОВКА 3D-ОСЕЙ...';
-	actionBtn.className = 'btn btn-recording';
-	actionBtn.disabled = true;
-	currentAngle = 0;
-	lastAngle = 0;
-	totalRotations = 0;
-	totalDegreesTraveled = 0;
-	isFirstAngle = true;
-	oscData = [];
-	angleSectors.fill(0);
-	maxSectorValue = 0;
-	impactTimeline = [];
-	stopTimestamp = null;
-	document.querySelectorAll('.m-loss, .p-loss, .m-ref, .p-ref, .m-eng, .p-eng').forEach(td => td.textContent = '-');
-	timerVal.innerHTML = '0.0 <span class="unit">сек</span>';
-	effVal.innerHTML = '0 <span class="unit">%</span>';
-	diagLog.innerHTML = "<span style='color:#f59e0b'>⚡ Автомат готов.</span> Резко толкните изолированное колесо вперед.";
-	setTimeout(() => {
-		if (currentState === STATE_WAITING_FOR_SPIN) {
-			actionBtn.textContent = 'ВЗВЕДЕНО! ТОЛКАЙТЕ!';
-			diagLog.innerHTML = "<span style='color:var(--green)'>🚀 СТАРТ ГОТОВ.</span> Толкайте колесо со всей силы!";
-		}
-	}, 1000);
-	window.addEventListener('deviceorientation', onOrientation);
-	window.addEventListener('devicemotion', onMotion);
-	requestAnimationFrame(uiRenderLoop);
+actionBtn.addEventListener('click', async () => {
+    currentState = STATE_WAITING_FOR_SPIN; actionBtn.textContent = 'КАЛИБРОВКА 3D-ОСЕЙ...'; actionBtn.className = 'btn btn-recording'; actionBtn.disabled = true; 
+    currentAngle = 0; lastAngle = 0; totalRotations = 0; totalDegreesTraveled = 0; isFirstAngle = true;
+    oscData = []; angleSectors.fill(0); maxSectorValue = 0; impactTimeline = []; stopTimestamp = null; audioHistory = [];
+    document.querySelectorAll('.m-loss, .p-loss, .m-ref, .p-ref, .m-eng, .p-eng').forEach(td => td.textContent = '-');
+    timerVal.innerHTML = '0.0 <span class="unit">сек</span>'; effVal.innerHTML = '0 <span class="unit">%</span>';
+    diagLog.innerHTML = "<span style='color:#f59e0b'>⚡ Автомат готов.</span> Резко толкните изолированное колесо вперед.";
+    try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const source = audioCtx.createMediaStreamSource(audioStream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+    } catch (err) { console.log("Аудио-ошибка", err); }
+    setTimeout(() => {
+        if(currentState === STATE_WAITING_FOR_SPIN) {
+            actionBtn.textContent = 'ВЗВЕДЕНО! ТОЛКАЙТЕ!';
+            diagLog.innerHTML = "<span style='color:var(--green)'>🚀 СТАРТ ГОТОВ.</span> Толкайте колесо со всей силы!";
+        }
+    }, 1000);
+    window.addEventListener('deviceorientation', onOrientation); window.addEventListener('devicemotion', onMotion); requestAnimationFrame(uiRenderLoop);
 });
-
 function onOrientation(event) {
-	if (currentState === STATE_IDLE || currentState === STATE_FINISHED) return;
-	let angle = event.alpha;
-	if (angle !== null) {
-		currentAngle = Math.floor(angle) % 360;
-		if (isFirstAngle) {
-			lastAngle = currentAngle;
-			isFirstAngle = false;
-			return;
-		}
-		if (currentState === STATE_SPINNING) {
-			let deltaAngle = currentAngle - lastAngle;
-			if (deltaAngle > 180) deltaAngle -= 360;
-			else if (deltaAngle < -180) deltaAngle += 360;
-			totalDegreesTraveled += Math.abs(deltaAngle);
-			totalRotations = Math.floor(totalDegreesTraveled / 360);
-		}
-		lastAngle = currentAngle;
-	}
+    if (currentState === STATE_IDLE || currentState === STATE_FINISHED) return;
+    let angle = event.alpha;
+    if (angle !== null) {
+        currentAngle = Math.floor(angle) % 360;
+        if (isFirstAngle) { lastAngle = currentAngle; isFirstAngle = false; return; }
+        if (currentState === STATE_SPINNING) {
+            let deltaAngle = currentAngle - lastAngle;
+            if (deltaAngle > 180) deltaAngle -= 360; else if (deltaAngle < -180) deltaAngle += 360;
+            totalDegreesTraveled += Math.abs(deltaAngle); totalRotations = Math.floor(totalDegreesTraveled / 360);
+        }
+        lastAngle = currentAngle;
+    }
 }
-
 function onMotion(event) {
     if (currentState === STATE_IDLE || currentState === STATE_FINISHED) return;
     const now = performance.now();
@@ -155,8 +142,10 @@ function onMotion(event) {
             else if (now - stopTimestamp > STOP_DURATION_MS) {
                 currentState = STATE_FINISHED; endTime = stopTimestamp;
                 window.removeEventListener('deviceorientation', onOrientation); window.removeEventListener('devicemotion', onMotion);
+                if (audioStream) audioStream.getTracks().forEach(track => track.stop());
+                if (audioCtx) audioCtx.close();
                 actionBtn.textContent = '2. НАЧАТЬ АВТО-ТЕСТ'; actionBtn.className = 'btn btn-start'; actionBtn.disabled = false;
-                drawOscilloscope(); drawRadar(); analyzeAdvancedResults((endTime - startTime) / 1000); return;
+                drawOscilloscope(); drawRadar(); drawAudioSpectrum(); analyzeAdvancedResults((endTime - startTime) / 1000); return;
             }
         } else { stopTimestamp = null; }
     }
@@ -168,8 +157,21 @@ function onMotion(event) {
             if (totalVibeMagnitude < 0.6) totalVibeMagnitude = 0;
             oscData.push(totalVibeMagnitude);
             if (oscData.length > oscCanvas.clientWidth - 50) oscData.shift();
-            if (totalVibeMagnitude > 0) {
-                if (totalVibeMagnitude > angleSectors[currentAngle]) angleSectors[currentAngle] = totalVibeMagnitude;
+            let audioVolume = 0;
+            if (analyser) {
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                analyser.getByteFrequencyData(dataArray);
+                let highFreqSum = 0, count = 0;
+                for (let i = Math.floor(dataArray.length * 0.35); i < dataArray.length; i++) {
+                    highFreqSum += dataArray[i]; count++;
+                }
+                audioVolume = count > 0 ? (highFreqSum / count) / 25.5 : 0; 
+            }
+            audioHistory.push(audioVolume);
+            if (audioHistory.length > audioCanvas.clientWidth - 50) audioHistory.shift();
+            let combinedMetric = totalVibeMagnitude + audioVolume * 1.5;
+            if (combinedMetric > 0) {
+                if (combinedMetric > angleSectors[currentAngle]) angleSectors[currentAngle] = combinedMetric;
                 if (angleSectors[currentAngle] > maxSectorValue) maxSectorValue = angleSectors[currentAngle];
             }
             if (totalVibeMagnitude > 1.8) impactTimeline.push({ angle: currentAngle, force: totalVibeMagnitude });
@@ -193,7 +195,7 @@ function drawOscilloscope() {
         oscCtx.beginPath(); oscCtx.moveTo(x, 10); oscCtx.lineTo(x, graphH + 10); oscCtx.stroke(); oscCtx.fillText(Math.round(ratio * 100) + '%', x, h - 5);
     }
     if (oscData.length < 2) return;
-    oscCtx.strokeStyle = '#f97316'; oscCtx.lineWidth = 2.5; oscCtx.beginPath();
+    oscCtx.strokeStyle = 'var(--orange)'; oscCtx.lineWidth = 2.5; oscCtx.beginPath();
     const stepX = graphW / (oscCanvas.clientWidth - 50);
     for (let i = 0; i < oscData.length; i++) {
         let x = paddingLeft + (i * stepX); let y = graphH + 10 - (graphH * (oscData[i] / maxScaleY));
@@ -224,6 +226,30 @@ function drawRadar() {
         }
     }
 }
+function drawAudioSpectrum() {
+    const w = audioCanvas.clientWidth; const h = audioCanvas.clientHeight; audioCtxCanvas.clearRect(0, 0, w, h);
+    const paddingLeft = 45; const paddingBottom = 20; const graphW = w - paddingLeft - 10; const graphH = h - paddingBottom - 10;
+    audioCtxCanvas.strokeStyle = 'rgba(255, 255, 255, 0.25)'; audioCtxCanvas.lineWidth = 0.5; audioCtxCanvas.fillStyle = '#ffffff'; audioCtxCanvas.font = '10px tabular-nums'; audioCtxCanvas.textAlign = 'right';
+    for (let i = 0; i <= 4; i++) {
+        let y = graphH + 10 - (graphH * (i / 4));
+        audioCtxCanvas.beginPath(); audioCtxCanvas.moveTo(paddingLeft, y); audioCtxCanvas.lineTo(w - 10, y); audioCtxCanvas.stroke();
+        audioCtxCanvas.fillText((i * 25) + '%', paddingLeft - 8, y + 3);
+    }
+    audioCtxCanvas.textAlign = 'center';
+    for (let i = 0; i < 5; i++) {
+        let ratio = i / 4; let x = paddingLeft + (graphW * ratio);
+        audioCtxCanvas.beginPath(); audioCtxCanvas.moveTo(x, 10); audioCtxCanvas.lineTo(x, graphH + 10); audioCtxCanvas.stroke();
+        audioCtxCanvas.fillText(Math.round(ratio * 100) + '%', x, h - 5);
+    }
+    if (audioHistory.length < 2) return;
+    audioCtxCanvas.strokeStyle = '#10b981'; audioCtxCanvas.lineWidth = 2.0; audioCtxCanvas.beginPath();
+    const stepX = graphW / (audioCanvas.clientWidth - 50);
+    for (let i = 0; i < audioHistory.length; i++) {
+        let x = paddingLeft + (i * stepX); let y = graphH + 10 - (graphH * audioHistory[i]);
+        if (i === 0) audioCtxCanvas.moveTo(x, y); else audioCtxCanvas.lineTo(x, y);
+    }
+    audioCtxCanvas.stroke();
+}
 function analyzeAdvancedResults(automatedElapsed) {
     const elapsed = automatedElapsed; timerVal.innerHTML = elapsed.toFixed(1) + ' <span class="unit">сек</span>';
     if (totalDegreesTraveled < 90) { effVal.innerHTML = '0 <span class="unit">%</span>'; diagLog.innerHTML = "❌ <b>ОШИБКА 3D-АНАЛИЗА:</b> Недостаточный угол прокрутки."; return; }
@@ -252,7 +278,7 @@ function analyzeAdvancedResults(automatedElapsed) {
         let current_loss_8k = parseFloat(document.querySelector('tr[data-rpm="8000"] .p-loss').textContent);
         let ref_loss_8k = parseFloat(document.querySelector('tr[data-rpm="8000"] .p-ref').textContent);
         report += `❌ <b>ОБНАРУЖЕНЫ КИНЕТИЧЕСКИЕ ПОТЕРИ:</b> Ваш редуктор зажат. На рабочих 8000 RPM он крадет у мотора на <b> ${(current_loss_8k - ref_loss_8k).toFixed(3)} л.с.</b> больше, чем эталонный узел. `;
-        if (impactsPerRotation > 5.0) report += `<br><br>➔ Из-за высокой плотности 3D-ударов виноваты раковины в подшипниках. <b>Установка оригинальных NSK/SKF вернет эти силы на колесо.</b>`;
+        if (impactsPerRotation > 5.0) report += `<br><br>➔ Из-за высокой плотности 3D-ударов и акустического фона виноваты раковины в подшипниках. <b>Установка оригинальных NSK/SKF вернет эти силы на колесо.</b>`;
         else report += `<br><br>➔ Ударов нет, но трение повышено. Проверьте, не залито ли слишком густое масло и не зажаты ли валы регулировочными шайбами крышки редуктора.`;
     }
     diagLog.innerHTML = report;
@@ -260,7 +286,7 @@ function analyzeAdvancedResults(automatedElapsed) {
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js')
-            .then(reg => console.log('PWA офлайн режим активирован', reg))
+            .then(reg => console.log('PWA активен', reg))
             .catch(err => console.log('Ошибка PWA:', err));
     });
 }
