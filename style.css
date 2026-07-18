@@ -28,21 +28,39 @@ body {
 }
 
 header { 
-    text-align: center; 
     margin-bottom: 16px; 
 }
 
+.header-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
 h1 { 
-    font-size: 20px; 
+    font-size: 16px; 
     font-weight: 800; 
     letter-spacing: -0.5px; 
     color: #ffffff;
 }
 
+.version-badge {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent);
+    background-color: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    padding: 4px 8px;
+    border-radius: 8px;
+    font-variant-numeric: tabular-nums;
+}
+
 .subtitle { 
-    font-size: 12px; 
+    font-size: 11px; 
     color: #71717a; 
-    margin-top: 2px; 
+    margin-top: 4px; 
+    text-align: left;
 }
 
 .btn-group { 
